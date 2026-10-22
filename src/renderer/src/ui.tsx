@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef } from 'react'
 import type { JSX, ReactNode, TextareaHTMLAttributes } from 'react'
+import brandLogo from './assets/mwide-horizontal-black.svg'
 
 export function Textarea({
   style,
@@ -114,6 +115,8 @@ export type IconName =
   | 'sparkles'
   | 'chat'
   | 'close'
+  | 'terminal'
+  | 'chevronDown'
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }): JSX.Element {
   const paths: Record<IconName, ReactNode> = {
     projects: <path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 6h18" />,
@@ -133,6 +136,13 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }): JS
     sparkles: <path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3Z" />,
     chat: <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" />,
     close: <path d="m6 6 12 12M6 18 18 6" />,
+    terminal: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="3" />
+        <path d="m7 9 3 3-3 3m6 0h4" />
+      </>
+    ),
+    chevronDown: <path d="m6 9 6 6 6-6" />,
   }
   return (
     <svg
@@ -153,12 +163,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }): JS
 export function Brand(): JSX.Element {
   return (
     <div className="brand">
-      <div className="brand-heading">
-        <div className="brand-mark" aria-hidden="true">
-          M
-        </div>
-        <span className="brand-name">MWIDE</span>
-      </div>
+      <img className="brand-logo" src={brandLogo} alt="MWIDE" width={160} height={54} />
       <p className="brand-tagline">Easy MCP and Skill Management</p>
     </div>
   )

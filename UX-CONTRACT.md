@@ -1,6 +1,6 @@
 # UX contract
 
-MWIDE is an English desktop application for managing projects, model connections, a reusable MCP/Skill catalog, and conversations. Accessibility targets WCAG 2.2 AA. Dates are displayed in the user's local timezone using English formatting. Dark is the supported theme; reduced motion and forced colors remain usable.
+MWIDE is an English desktop application for managing projects, model connections, a reusable MCP/Skill catalog, and conversations. Accessibility targets WCAG 2.2 AA. Dates are displayed in the user's local timezone using English formatting. Light is the supported theme, with black-and-white branding and neutral interface tones; reduced motion and forced colors remain usable.
 
 ## Business-context sources
 
@@ -17,6 +17,8 @@ Billing, legal text, cloud synchronization, and autonomous tool authorization ha
 ## Visual contract
 
 `DESIGN.md` records the established identity. `src/renderer/src/styles.css` owns runtime tokens and maps them directly to shared controls. Keep both in sync; no generated theme adapter exists.
+
+The native window startup surface, renderer theme color, logo assets, and shared controls follow the same light theme. States remain distinguishable through labels, borders, icons, and focus treatment in the monochrome palette. A terminal-style utility label never implies that catalog tools can execute commands.
 
 ## Canonical UI Map
 

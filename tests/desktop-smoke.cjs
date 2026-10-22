@@ -2,8 +2,10 @@ const assert = require('node:assert/strict')
 const { mkdtemp, mkdir, readFile, writeFile } = require('node:fs/promises')
 const http = require('node:http')
 const { tmpdir } = require('node:os')
-const { join, resolve } = require('node:path')
+const { dirname, join, resolve } = require('node:path')
 const { app, BrowserWindow } = require('electron')
+
+app.commandLine.appendSwitch('force-prefers-reduced-motion')
 
 const requests = []
 let serviceAvailable = true
@@ -88,6 +90,7 @@ async function run() {
   )
   require('../out/main/index.cjs')
   const window = await created
+  window.webContents.setBackgroundThrottling(false)
   const evaluate = async (source) => {
     let result
     try {
@@ -127,6 +130,49 @@ async function run() {
       `(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) throw Error('Missing field'); Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e), 'value').set.call(e, ${JSON.stringify(value)}); e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); })()`,
     )
   }
+  const settleLayout = () =>
+    evaluate(
+      'new Promise(resolve => { setTimeout(resolve, 250); requestAnimationFrame(() => requestAnimationFrame(resolve)); })',
+    )
+  const screenshotDirectory = process.env.MWIDE_SCREENSHOT
+    ? dirname(resolve(process.env.MWIDE_SCREENSHOT))
+    : resolve('.mwide/test-results')
+  await mkdir(screenshotDirectory, { recursive: true })
+  window.setMinimumSize(360, 500)
+  const inspectLayout = async (screen) => {
+    const [originalWidth, originalHeight] = window.getContentSize()
+    for (const width of [1280, 980, 600]) {
+      window.setContentSize(width, 800)
+      await until(() => evaluate(`window.innerWidth === ${width}`), `${screen} viewport ${width}`)
+      await settleLayout()
+      const layout = await evaluate(`(() => ({
+        viewport: window.innerWidth,
+        page: document.documentElement.scrollWidth,
+        controlsOutsideViewport: [...document.querySelectorAll('input:not([type="hidden"]), textarea, select, button')]
+          .filter(element => {
+            const bounds = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return bounds.width > 0 && bounds.height > 0 && style.visibility !== 'hidden'
+              && (bounds.left < -1 || bounds.right > window.innerWidth + 1);
+          }).map(element => element.getAttribute('aria-label') || element.name || element.textContent.trim()),
+      }))()`)
+      await writeFile(
+        join(screenshotDirectory, `${screen}-${width}.png`),
+        (await window.webContents.capturePage()).toPNG(),
+      )
+      assert.ok(
+        layout.page <= layout.viewport + 1,
+        `${screen} overflows horizontally at ${width}px`,
+      )
+      assert.deepEqual(
+        layout.controlsOutsideViewport,
+        [],
+        `${screen} has unreachable horizontal controls at ${width}px`,
+      )
+    }
+    window.setContentSize(originalWidth, originalHeight)
+    await settleLayout()
+  }
   await until(
     () => evaluate("document.querySelector('h1')?.textContent === 'Projects'"),
     'workspace startup',
@@ -136,6 +182,47 @@ async function run() {
   assert.equal(preferences.sandbox, true)
   assert.equal(preferences.contextIsolation, true)
   assert.equal(preferences.nodeIntegration, false)
+  const theme = await evaluate(`(() => {
+    const style = getComputedStyle(document.documentElement);
+    const navigation = getComputedStyle(document.querySelector('.nav-item'));
+    return {
+      background: style.getPropertyValue('--background').trim(),
+      main: style.getPropertyValue('--main').trim(),
+      accent: style.getPropertyValue('--accent').trim(),
+      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      transitionDurations: navigation.transitionDuration.split(',').map(parseFloat),
+    };
+  })()`)
+  assert.equal(theme.background, '#f3f3f1')
+  assert.equal(theme.main, '#fafaf9')
+  assert.equal(theme.accent, '#202020')
+  assert.equal(theme.reducedMotion, true)
+  assert.ok(theme.transitionDurations.every((duration) => duration <= 0.01))
+  await until(
+    () =>
+      evaluate(
+        'Boolean(document.querySelector("img.brand-logo")?.complete && document.querySelector("img.brand-logo")?.naturalWidth > 0)',
+      ),
+    'loaded brand image',
+  )
+  window.focus()
+  window.webContents.focus()
+  await evaluate('document.querySelector(".nav-item").focus()')
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+  const keyboardFocus = await evaluate(`(() => {
+    const element = document.activeElement;
+    const style = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    return {
+      interactive: element.matches('button, a[href], input, textarea, select, [tabindex="0"]'),
+      visible: bounds.width > 0 && bounds.height > 0,
+      indicated: (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0) || style.boxShadow !== 'none',
+    };
+  })()`)
+  assert.deepEqual(keyboardFocus, { interactive: true, visible: true, indicated: true })
+  await evaluate('document.activeElement.blur()')
+  await inspectLayout('projects-empty')
   const settings = {
     ...(await state()).settings,
     defaultProvider: 'ollama',
@@ -156,14 +243,27 @@ async function run() {
     await evaluate('document.querySelector(".provider-card:last-child select").value'),
     'fixture:local',
   )
+  await inspectLayout('providers')
   await click('CatalogMCPs & Skills', '.nav-item')
   await click('Add entry')
+  const lastCatalogType = await evaluate(
+    'document.querySelector("select").options[document.querySelector("select").options.length - 1].value',
+  )
+  await evaluate('document.querySelector("select").focus()')
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'End' })
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'End' })
+  await until(
+    () => evaluate(`document.querySelector('select').value === ${JSON.stringify(lastCatalogType)}`),
+    'native catalog select keyboard selection',
+  )
   await fill('select', 'skill')
   await fill('input[name="name"]', 'Focused tests')
   await fill('textarea[name="description"]', 'Testing project behavior')
   await fill('textarea[name="instructions"]', 'Verify outcomes before committing.')
+  await inspectLayout('catalog-entry')
   await click('Save entry')
   await until(async () => (await state()).catalog.length === 1, 'catalog persistence')
+  await inspectLayout('catalog')
   await click('ProjectsYour work, in context', '.nav-item')
   await click('New project')
   await click('Create project')
@@ -184,6 +284,7 @@ async function run() {
   await fill('textarea[name="description"]', project.description)
   await fill('textarea[name="rules"]', project.rules)
   await fill('textarea[name="architecture"]', project.architecture)
+  await inspectLayout('create-project')
   await click('Recommend MCPs & Skills')
   await click('Apply recommendations')
   await click('Create project')
@@ -191,6 +292,7 @@ async function run() {
   const saved = (await state()).projects[0]
   for (const [field, value] of Object.entries(project)) assert.equal(saved[field], value)
   assert.equal(saved.catalogIds.length, 1)
+  await inspectLayout('chat-empty')
   await click('New conversation')
   await until(
     () => evaluate('!document.querySelector("#chat-message").disabled'),
@@ -226,6 +328,9 @@ async function run() {
     () => evaluate('!document.querySelector("#chat-message").disabled'),
     'response completion',
   )
+  await inspectLayout('chat')
+  if (process.env.MWIDE_SCREENSHOT)
+    await writeFile(process.env.MWIDE_SCREENSHOT, (await window.webContents.capturePage()).toPNG())
   await evaluate(`document.querySelector('[aria-label="New conversation"]').click()`)
   await until(async () => (await state()).conversations.length === 2, 'cross-chat summary')
   await until(
@@ -308,24 +413,9 @@ async function run() {
   const disk = JSON.parse(await readFile(join(directory, 'workspace.json'), 'utf8'))
   assert.deepEqual(disk.state, beforeReload)
   assert.equal(BrowserWindow.getAllWindows().length, 1)
-  if (process.env.MWIDE_SCREENSHOT) {
-    await evaluate('document.querySelector(".project-card").click()')
-    await evaluate(
-      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))',
-    )
-    await writeFile(process.env.MWIDE_SCREENSHOT, (await window.webContents.capturePage()).toPNG())
-    window.setSize(980, 700)
-    await evaluate(
-      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))',
-    )
-    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
-    await writeFile(
-      process.env.MWIDE_SCREENSHOT.replace('.png', '-narrow.png'),
-      (await window.webContents.capturePage()).toPNG(),
-    )
-  }
+  await inspectLayout('projects-list')
   console.log(
-    'Desktop smoke passed: real preload/IPC, forms, catalog, recommendations, streams, cancellation, cross-chat context, reload and durable storage.',
+    `Desktop smoke passed: real preload/IPC, forms, catalog, recommendations, streams, cancellation, cross-chat context, reload, durable storage, monochrome theme, brand image, keyboard focus, native select, reduced motion and 1280/980/600px layouts. Screenshots: ${screenshotDirectory}`,
   )
 }
 

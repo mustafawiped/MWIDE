@@ -1,6 +1,9 @@
+/// <reference types="electron-vite/node" />
+
 import { app, BrowserWindow, Menu, session } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import appIcon from '../renderer/src/assets/mwide-app-icon-256.png?asset'
 import { registerWorkspace } from './workspace-ipc.ts'
 
 const rendererFile = join(__dirname, '../renderer/index.html')
@@ -15,7 +18,8 @@ async function createWindow(): Promise<void> {
     minWidth: 980,
     minHeight: 700,
     title: 'MWIDE',
-    backgroundColor: '#111318',
+    icon: appIcon,
+    backgroundColor: '#fafaf9',
     show: false,
     autoHideMenuBar: true,
     webPreferences: {

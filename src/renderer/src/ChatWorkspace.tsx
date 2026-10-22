@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import type { Conversation, Project } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
-import { EmptyState, Icon, Textarea } from './ui'
+import { Icon, Textarea } from './ui'
+import symbolBlack from './assets/mwide-symbol-black.svg'
 
 export function ChatWorkspace({
   project,
@@ -36,6 +37,8 @@ export function ChatWorkspace({
   const selectedCatalog = (workspace.state?.catalog ?? []).filter((entry) =>
     project.catalogIds.includes(entry.id),
   )
+  const mcpCount = selectedCatalog.filter((entry) => entry.kind === 'mcp').length
+  const skillCount = selectedCatalog.filter((entry) => entry.kind === 'skill').length
   useEffect(() => {
     const container = streamContainer.current
     if (!container) return
@@ -75,7 +78,7 @@ export function ChatWorkspace({
         .map((message) => (
           <article className={`message ${message.role}`} key={message.id}>
             <div className="message-avatar" aria-hidden="true">
-              {message.role === 'user' ? 'Y' : 'M'}
+              {message.role === 'user' ? 'Y' : <img src={symbolBlack} alt="" />}
             </div>
             <div className="message-body">
               <div className="message-meta">
@@ -95,7 +98,7 @@ export function ChatWorkspace({
       {streaming && (
         <article className="message assistant">
           <div className="message-avatar" aria-hidden="true">
-            M
+            <img src={symbolBlack} alt="" />
           </div>
           <div className="message-body">
             <div className="message-meta">
@@ -117,7 +120,11 @@ export function ChatWorkspace({
           ← Projects
         </button>
         <span className="topbar-divider" />
-        <h1>{project.name}</h1>
+        <div className="project-breadcrumb">
+          <span className="eyebrow">PROJECT</span>
+          <h1>{project.name}</h1>
+        </div>
+        <span className="project-utility">Workspace / chat</span>
         <button
           className="button ghost context-edit"
           disabled={busy || workspace.pending}
@@ -129,7 +136,9 @@ export function ChatWorkspace({
       <div className="workspace-layout">
         <aside className="conversations-panel" aria-label="Project conversations">
           <div className="conversation-heading">
-            <span className="eyebrow">CONVERSATIONS</span>
+            <span className="eyebrow">
+              CONVERSATIONS <span className="conversation-count">{conversations.length}</span>
+            </span>
             <button
               className="icon-button"
               aria-label="New conversation"
@@ -161,11 +170,11 @@ export function ChatWorkspace({
           </div>
           <div className="project-context-preview">
             <span className="eyebrow">PROJECT CONTEXT</span>
-            <p>{project.description}</p>
-            <span className="muted small">
-              {selectedCatalog.length} selected catalog{' '}
-              {selectedCatalog.length === 1 ? 'entry' : 'entries'}
-            </span>
+            <p>{project.description || 'Add a project brief to guide your conversations.'}</p>
+            <div className="context-counts" aria-label="Selected catalog instructions">
+              <span>{mcpCount} MCP instructions</span>
+              <span>{skillCount} skill instructions</span>
+            </div>
           </div>
         </aside>
         <section className="chat-main" aria-label="Conversation">
@@ -203,14 +212,40 @@ export function ChatWorkspace({
                 container.scrollHeight - container.scrollTop - container.clientHeight < 100
             }}
           >
-            {!active ? (
-              <EmptyState icon="chat" title="A new thread for your project.">
-                Create a conversation to work with your project brief and selected instructions.
-              </EmptyState>
-            ) : active.messages.length === 0 && !streaming ? (
-              <EmptyState icon="sparkles" title="What would you like to work on?">
-                Your project context is included. Bring an idea, a question, or your next step.
-              </EmptyState>
+            {!active || (active.messages.length === 0 && !streaming) ? (
+              <div className="empty-state chat-empty-state">
+                <img className="chat-empty-mark" src={symbolBlack} alt="" />
+                <span className="chat-empty-kicker">
+                  {active ? 'NEW CONVERSATION' : 'PROJECT WORKSPACE'}
+                </span>
+                <h2>
+                  {active ? 'What would you like to work on?' : `Start working in ${project.name}.`}
+                </h2>
+                <p>
+                  {active
+                    ? 'Your project context is included. Bring an idea, a question, or your next step.'
+                    : 'Create a conversation to work with your project brief and selected instructions.'}
+                </p>
+                {!active && (
+                  <div className="chat-empty-actions">
+                    <button
+                      className="button primary"
+                      disabled={busy || workspace.pending}
+                      onClick={() => void newChat()}
+                    >
+                      <Icon name="plus" size={16} />
+                      New conversation
+                    </button>
+                    <button
+                      className="button ghost"
+                      disabled={busy || workspace.pending}
+                      onClick={onEdit}
+                    >
+                      Edit project context
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               renderMessages(active)
             )}
@@ -249,6 +284,22 @@ export function ChatWorkspace({
             noValidate
             onSubmit={(event) => void submit(event)}
           >
+            <div className="composer-context">
+              <span
+                className="composer-model"
+                title={`${provider} / ${model || 'No model selected'}`}
+              >
+                <Icon name="sparkles" size={14} />
+                <span>{model || 'No model selected'}</span>
+              </span>
+              <span
+                className="composer-catalog"
+                title="Selected catalog instructions included with this project"
+                aria-label={`${mcpCount} MCP and ${skillCount} skill instructions included`}
+              >
+                {mcpCount} MCP · {skillCount} {skillCount === 1 ? 'skill' : 'skills'}
+              </span>
+            </div>
             <label className="sr-only" htmlFor="chat-message">
               Message
             </label>
@@ -280,7 +331,7 @@ export function ChatWorkspace({
               }}
             />
             <div className="composer-footer">
-              <span>
+              <span className="composer-hint">
                 {active ? 'Ctrl / ⌘ + Enter to send' : 'Each conversation keeps its own history.'}
               </span>
               {busy ? (
