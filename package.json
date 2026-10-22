@@ -19,6 +19,7 @@
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check"
   },
   "dependencies": {

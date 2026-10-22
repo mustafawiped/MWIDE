@@ -28,5 +28,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate source
         run: pnpm check
+      - name: Test application behavior
+        run: pnpm test
       - name: Build application
         run: pnpm build

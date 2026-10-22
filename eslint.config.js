@@ -12,7 +12,19 @@ export default defineConfig([
     extends: [js.configs.recommended, tseslint.configs.recommended],
   },
   {
-    files: ['*.{js,ts}', 'src/main/**/*.ts', 'src/preload/**/*.ts'],
+    files: ['tests/**/*.cjs'],
+    extends: [js.configs.recommended],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: [
+      '*.{js,ts}',
+      'src/main/**/*.ts',
+      'src/preload/**/*.ts',
+      'src/core/**/*.ts',
+      'src/providers/**/*.ts',
+      'tests/**/*.ts',
+    ],
     languageOptions: { globals: globals.node },
   },
   {
