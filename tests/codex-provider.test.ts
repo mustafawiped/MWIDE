@@ -171,6 +171,12 @@ test('Codex uses a private profile, explicit tool restrictions, no shell and no 
   const status = await context.provider.inspect()
   assert.equal(status.connected, false)
   assert.match(status.detail, /Sign in with ChatGPT/)
+  const metadata = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.deepEqual(
+    (await context.requests()).find((request) => request.method === 'initialize')?.params
+      ?.clientInfo,
+    { name: 'mwide', title: 'MWIDE', version: metadata.version },
+  )
   const info = context.spawnInfo()
   assert.equal(info.env.CODEX_HOME, join(context.directory, 'profile'))
   assert.equal(info.env.OPENAI_API_KEY, undefined)

@@ -3,6 +3,7 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import { mkdir, readdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, isAbsolute, join } from 'node:path'
+import packageMetadata from '../../package.json' with { type: 'json' }
 import type {
   CodexUsageLimits,
   ModelCapabilities,
@@ -509,7 +510,7 @@ export class CodexProvider implements ModelProvider {
     })
     try {
       await rpc.request('initialize', {
-        clientInfo: { name: 'mwide', title: 'MWIDE', version: '0.0.0' },
+        clientInfo: { name: 'mwide', title: 'MWIDE', version: packageMetadata.version },
         capabilities: null,
       })
       this.assertActive()
