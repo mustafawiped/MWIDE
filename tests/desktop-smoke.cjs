@@ -122,7 +122,7 @@ async function run() {
       label,
     )
     await evaluate(
-      `[...document.querySelectorAll(${JSON.stringify(selector)})].find(e => !e.disabled && e.textContent.trim().replace(/\\s+/g, ' ') === ${JSON.stringify(label)}).click()`,
+      `(() => { const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find(e => !e.disabled && e.textContent.trim().replace(/\\s+/g, ' ') === ${JSON.stringify(label)}); const disclosure = target.closest('details'); if (disclosure && !disclosure.open) disclosure.querySelector('summary').click(); target.click(); })()`,
     )
   }
   const fill = async (selector, value) => {
@@ -155,6 +155,7 @@ async function run() {
             return bounds.width > 0 && bounds.height > 0 && style.visibility !== 'hidden'
               && (bounds.left < -1 || bounds.right > window.innerWidth + 1);
           }).map(element => element.getAttribute('aria-label') || element.name || element.textContent.trim()),
+        chatGeometry: [...document.querySelectorAll('.project-workspace, .workspace-layout, .chat-main, .chat-stream, .composer')].map(element => ({ class: element.className, height: element.getBoundingClientRect().height, top: element.getBoundingClientRect().top, bottom: element.getBoundingClientRect().bottom, client: element.clientHeight, scroll: element.scrollHeight })),
       }))()`)
       await writeFile(
         join(screenshotDirectory, `${screen}-${width}.png`),
@@ -169,6 +170,13 @@ async function run() {
         [],
         `${screen} has unreachable horizontal controls at ${width}px`,
       )
+      if (width >= 980 && layout.chatGeometry.length) {
+        const composerBounds = layout.chatGeometry.find((element) => element.class === 'composer')
+        assert.ok(
+          composerBounds.bottom <= 801,
+          `Chat composer must stay visible: ${JSON.stringify(layout.chatGeometry)}`,
+        )
+      }
     }
     window.setContentSize(originalWidth, originalHeight)
     await settleLayout()
@@ -207,6 +215,14 @@ async function run() {
   )
   window.focus()
   window.webContents.focus()
+  assert.equal(await evaluate('document.querySelector(".workspace-menu").open'), false)
+  await evaluate('document.querySelector(".workspace-menu > summary").focus()')
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' })
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' })
+  await until(
+    () => evaluate('document.querySelector(".workspace-menu").open'),
+    'keyboard opens Workspace menu',
+  )
   await evaluate('document.querySelector(".nav-item").focus()')
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
   window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
@@ -222,6 +238,7 @@ async function run() {
   })()`)
   assert.deepEqual(keyboardFocus, { interactive: true, visible: true, indicated: true })
   await evaluate('document.activeElement.blur()')
+  await evaluate('document.querySelector(".workspace-menu > summary").click()')
   await inspectLayout('projects-empty')
   const settings = {
     ...(await state()).settings,
@@ -348,6 +365,18 @@ async function run() {
     assert.ok(context.includes(project[field]))
   assert.ok(context.includes(summary))
   assert.ok(context.includes('Verify outcomes before committing.'))
+  const firstTitle = (await state()).conversations[0].title
+  const secondTitle = (await state()).conversations[1].title
+  await click(firstTitle, '.conversation-item')
+  await fill('#chat-message', 'Unsent first conversation draft')
+  await click('CatalogMCPs & Skills', '.nav-item')
+  await click(firstTitle, '.conversation-item')
+  assert.equal(
+    await evaluate('document.querySelector("#chat-message").value'),
+    'Unsent first conversation draft',
+  )
+  await click(secondTitle, '.conversation-item')
+  assert.equal(await evaluate('document.querySelector("#chat-message").value'), '')
   await until(
     () => evaluate('!document.querySelector("#chat-message").disabled'),
     'ready to cancel',
@@ -406,14 +435,46 @@ async function run() {
   const beforeReload = await state()
   await window.webContents.reload()
   await until(
-    () => evaluate("document.querySelector('h1')?.textContent === 'Projects'"),
+    () => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(project.name)}`),
     'workspace reload',
   )
   assert.deepEqual(await state(), beforeReload)
   const disk = JSON.parse(await readFile(join(directory, 'workspace.json'), 'utf8'))
   assert.deepEqual(disk.state, beforeReload)
   assert.equal(BrowserWindow.getAllWindows().length, 1)
+  assert.equal(await evaluate('document.querySelector(".workspace-menu").open'), false)
+  assert.equal(
+    await evaluate('document.querySelector(".chat-header h2").textContent'),
+    beforeReload.conversations.at(-1).title,
+  )
+  await inspectLayout('chat-focused')
+  await click('ProjectsYour work, in context', '.nav-item')
   await inspectLayout('projects-list')
+  await click(firstTitle, '.conversation-item')
+  await fill('#chat-message', 'Draft retained across projects')
+  await click('New project')
+  await fill('input[name="name"]', 'Another project')
+  await fill('textarea[name="description"]', 'Keep this project separate from the first one.')
+  await click('Create project')
+  await until(
+    () => evaluate('document.querySelector("h1")?.textContent === "Another project"'),
+    'second project opens in chat',
+  )
+  assert.equal(await evaluate('document.querySelectorAll(".conversation-item").length'), 0)
+  await click('New conversation')
+  await until(
+    () => evaluate('!document.querySelector("#chat-message").disabled'),
+    'second project conversation',
+  )
+  await click(project.name, '.sidebar-project')
+  assert.equal(await evaluate('document.querySelector(".chat-header h2").textContent'), firstTitle)
+  assert.equal(
+    await evaluate('document.querySelector("#chat-message").value'),
+    'Draft retained across projects',
+  )
+  await inspectLayout('project-chat')
+  await evaluate('document.querySelector(".workspace-menu > summary").click()')
+  await inspectLayout('workspace-menu')
   console.log(
     `Desktop smoke passed: real preload/IPC, forms, catalog, recommendations, streams, cancellation, cross-chat context, reload, durable storage, monochrome theme, brand image, keyboard focus, native select, reduced motion and 1280/980/600px layouts. Screenshots: ${screenshotDirectory}`,
   )

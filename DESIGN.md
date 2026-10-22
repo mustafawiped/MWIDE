@@ -44,7 +44,7 @@ components:
 
 ## Overview
 
-MWIDE is a desktop workbench for people managing project context, model conversations, MCPs, and Skills. Its reference is the familiar sidebar and focused conversation workspace of Claude Desktop and Codex, expressed through the supplied MWIDE black-and-white identity. The signature is a quiet software workspace: a compact navigation rail, readable conversation column, and restrained terminal-style utility labels. Project purpose stays close to the conversation.
+MWIDE is a desktop workbench for people managing project context, model conversations, MCPs, and Skills. Its reference is the familiar sidebar and focused conversation workspace of Claude Desktop and Codex, expressed through the supplied MWIDE black-and-white identity. The signature is a quiet software workspace: one compact navigation rail keeps the selected project's chat history beside a readable conversation column. Project and tool management remain available through sidebar disclosures, leaving chat as the primary workspace. Restrained terminal-style utility labels support the software setting.
 
 The supplied Perplexity style reference informs compact density, off-white surfaces, hairline dividers, modest type weights, and rounded inputs. The user's explicit monochrome direction takes precedence over that reference's teal accent and warm parchment palette. Keep the product task-oriented; do not reproduce a search-engine landing page or add a decorative terminal simulation.
 
@@ -64,7 +64,9 @@ Mapping: `colors.<name>` maps directly to `--<name>` in `styles.css`, including 
 
 ## Layout
 
-The desktop navigation rail is 252px, reducing to 220px at 1100px and below. The working-area maximum is 1180px; conversation content is capped at a 900px reading width. The project editor section gap is 32px, with compact element gaps and 16–26px component padding. These values map to `.app-shell`, `.page-content`, `.editor-grid`, and the conversation reading column in the runtime stylesheet. At 1100px, forms stack; at 720px, navigation becomes a top row and conversations become a horizontal strip. Forms scroll with the page. The message log owns chat scrolling and follows new content only while the reader is near the bottom.
+The desktop navigation rail is 252px, reducing to 220px at 1100px and below. It contains the brand, a collapsed Workspace disclosure for Projects, Catalog, and Providers, a project switcher with a New project action, New conversation, and the selected project's chat history. Keep history in this single rail; the conversation screen does not add another conversation-list column. The main surface gives project chat priority, while management pages remain reachable from Workspace.
+
+The working-area maximum is 1180px; conversation content is capped at a 900px reading width. The project editor section gap is 32px, with compact element gaps and 16–26px component padding. These values map to `.app-shell`, `.page-content`, `.editor-grid`, and the conversation reading column in the runtime stylesheet. At 1100px, forms stack. Narrow layouts preserve access to workspace destinations, project switching, history, and chat actions. Forms scroll with the page. The message log owns chat scrolling and follows new content only while the reader is near the bottom.
 
 ## Elevation & Depth
 
@@ -78,6 +80,8 @@ Buttons map to the 6px `--radius-control`; fields and the composer use the 12px 
 
 `ui.tsx` owns icons, headings, empty states, auto-growing textareas, and confirmation dialogs. Buttons retain primary, secondary, ghost, and danger treatments, with visible hover, focus, active, and disabled states. Busy operations preserve labels and show the shared pending region. Native selects deliberately retain platform-owned popup geometry and keyboard behavior.
 
+Sidebar disclosures use compact neutral summary rows with a visible expansion indicator. Project and conversation entries expose selection without relying on color alone. Keep the project switcher and chat history available while browsing Workspace pages so the selected project stays visible and returning to a conversation remains direct.
+
 The supplied logo kit is the authority for brand artwork. `src/renderer/src/assets/mwide-horizontal-black.svg` anchors the sidebar; `mwide-symbol-black.svg` supports compact and empty-state use. Preserve their geometry and black artwork, with at least one rail width of clear space. Use the horizontal lockup at 160px or wider and the regular symbol at 24px or larger. The favicon uses the kit's dedicated small drawing. The native window uses the supplied 256px app icon, imported through the Electron asset pipeline so it is included in production output. Brand imagery has fixed dimensions to avoid layout shifts. Do not recreate the mark with text or CSS. The exact tagline is “Easy MCP and Skill Management.”
 
 The native window startup background and HTML theme color match `main` to avoid a dark flash before the renderer appears. There is no independent desktop theme or alternate dark palette.
@@ -87,6 +91,7 @@ Forms use app-owned text validation and field associations. Textareas grow from 
 ## Do's and Don'ts
 
 - Keep the complete project purpose and architecture distinct from compact conversation memory.
+- Give project chat and its history priority; group management destinations inside the sidebar Workspace disclosure.
 - Reuse the neutral surface hierarchy, black primary actions, shared form behavior, and explicit action vocabulary.
 - Keep the supplied logo black on light surfaces and preserve its proportions and clear space.
 - Do not present catalog selection as tool execution or provider configuration as a verified connection.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { FormEvent, JSX } from 'react'
 import type { Conversation, Project } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
@@ -8,21 +8,22 @@ import symbolBlack from './assets/mwide-symbol-black.svg'
 export function ChatWorkspace({
   project,
   workspace,
-  onBack,
+  conversationId,
+  onNewConversation,
   onEdit,
 }: {
   project: Project
   workspace: WorkspaceController
-  onBack: () => void
+  conversationId?: string
+  onNewConversation: () => void
   onEdit: () => void
 }): JSX.Element {
   const conversations = (workspace.state?.conversations ?? []).filter(
     (item) => item.projectId === project.id,
   )
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const drafts = workspace.chatDrafts
   const setDrafts = workspace.setChatDrafts
-  const active = conversations.find((item) => item.id === selectedId) ?? conversations[0]
+  const active = conversations.find((item) => item.id === conversationId) ?? conversations.at(-1)
   const draft = active ? (drafts[active.id] ?? '') : ''
   const busy = Boolean(workspace.generatingId)
   const streaming = active?.id === workspace.generatingId && !workspace.responseSaved
@@ -48,14 +49,6 @@ export function ChatWorkspace({
     }
     if (followLatest.current) container.scrollTop = container.scrollHeight
   }, [active?.id, active?.messages.length, workspace.stream])
-  const newChat = async () => {
-    const next = await workspace.mutate((bridge) => bridge.createConversation(project.id))
-    const created = next?.conversations.find(
-      (item) =>
-        item.projectId === project.id && !conversations.some((previous) => previous.id === item.id),
-    )
-    if (created) setSelectedId(created.id)
-  }
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!active || !draft.trim() || busy || workspace.pending) return
@@ -116,15 +109,11 @@ export function ChatWorkspace({
   return (
     <div className="project-workspace">
       <header className="chat-topbar">
-        <button className="button ghost" disabled={busy || workspace.pending} onClick={onBack}>
-          ← Projects
-        </button>
-        <span className="topbar-divider" />
         <div className="project-breadcrumb">
           <span className="eyebrow">PROJECT</span>
           <h1>{project.name}</h1>
         </div>
-        <span className="project-utility">Workspace / chat</span>
+        <span className="project-utility">Project chat</span>
         <button
           className="button ghost context-edit"
           disabled={busy || workspace.pending}
@@ -134,49 +123,6 @@ export function ChatWorkspace({
         </button>
       </header>
       <div className="workspace-layout">
-        <aside className="conversations-panel" aria-label="Project conversations">
-          <div className="conversation-heading">
-            <span className="eyebrow">
-              CONVERSATIONS <span className="conversation-count">{conversations.length}</span>
-            </span>
-            <button
-              className="icon-button"
-              aria-label="New conversation"
-              title="New conversation"
-              disabled={busy || workspace.pending}
-              onClick={() => void newChat()}
-            >
-              <Icon name="plus" size={18} />
-            </button>
-          </div>
-          <div className="conversation-list">
-            {conversations.length === 0 ? (
-              <p className="inline-empty">Your conversations will appear here.</p>
-            ) : (
-              conversations.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  className={`conversation-item ${active?.id === conversation.id ? 'selected' : ''}`}
-                  disabled={busy}
-                  aria-current={active?.id === conversation.id ? 'page' : undefined}
-                  onClick={() => setSelectedId(conversation.id)}
-                  title={conversation.title}
-                >
-                  <Icon name="chat" size={16} />
-                  <span>{conversation.title}</span>
-                </button>
-              ))
-            )}
-          </div>
-          <div className="project-context-preview">
-            <span className="eyebrow">PROJECT CONTEXT</span>
-            <p>{project.description || 'Add a project brief to guide your conversations.'}</p>
-            <div className="context-counts" aria-label="Selected catalog instructions">
-              <span>{mcpCount} MCP instructions</span>
-              <span>{skillCount} skill instructions</span>
-            </div>
-          </div>
-        </aside>
         <section className="chat-main" aria-label="Conversation">
           <header className="chat-header">
             <div>
@@ -231,7 +177,7 @@ export function ChatWorkspace({
                     <button
                       className="button primary"
                       disabled={busy || workspace.pending}
-                      onClick={() => void newChat()}
+                      onClick={onNewConversation}
                     >
                       <Icon name="plus" size={16} />
                       New conversation
@@ -362,7 +308,7 @@ export function ChatWorkspace({
                   className="button primary"
                   type="button"
                   disabled={workspace.pending}
-                  onClick={() => void newChat()}
+                  onClick={onNewConversation}
                 >
                   <Icon name="plus" size={16} />
                   New conversation

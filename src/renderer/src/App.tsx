@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectDraft } from '../../shared/contracts'
 import { useWorkspace } from './useWorkspace'
-import { Brand, ConfirmDialog, Icon, PageHeading } from './ui'
-import type { IconName } from './ui'
+import { ConfirmDialog, Icon, PageHeading } from './ui'
 import { ProjectEditor } from './ProjectEditor'
 import { ProvidersPage } from './ProvidersPage'
 import { CatalogPage } from './CatalogPage'
 import { ChatWorkspace } from './ChatWorkspace'
 import workspaceSymbol from './assets/mwide-symbol-black.svg'
-type Page = 'projects' | 'catalog' | 'providers'
+import { WorkspaceSidebar } from './WorkspaceSidebar'
+import type { WorkspacePage } from './WorkspaceSidebar'
 const emptyProject: ProjectDraft = {
   name: '',
   description: '',
@@ -20,11 +20,19 @@ const emptyProject: ProjectDraft = {
 
 export default function App(): JSX.Element {
   const workspace = useWorkspace()
-  const [page, setPage] = useState<Page>('projects')
+  const [page, setPage] = useState<WorkspacePage>('workspace')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [projectForm, setProjectForm] = useState<'new' | 'edit' | null>(null)
   const projects = workspace.state?.projects ?? []
-  const selectedProject = projects.find((project) => project.id === selectedProjectId)
+  const selectedProject =
+    projects.find((project) => project.id === selectedProjectId) ?? projects[0]
+  const [selectedConversations, setSelectedConversations] = useState<Record<string, string>>({})
+  const conversations = (workspace.state?.conversations ?? []).filter(
+    (item) => item.projectId === selectedProject?.id,
+  )
+  const activeConversation =
+    conversations.find((item) => item.id === selectedConversations[selectedProject?.id ?? '']) ??
+    conversations.at(-1)
   const locked = Boolean(workspace.generatingId) || workspace.pending
   const settings = workspace.state?.settings
   const model = settings?.defaultProvider === 'ollama' ? settings.ollamaModel : settings?.codexModel
@@ -34,15 +42,20 @@ export default function App(): JSX.Element {
         ? 'Create a project'
         : projectForm === 'edit'
           ? 'Project context'
-          : (selectedProject?.name ??
-            (page === 'catalog' ? 'Catalog' : page === 'providers' ? 'Providers' : 'Projects'))
+          : page === 'workspace'
+            ? (selectedProject?.name ?? 'Workspace')
+            : page === 'catalog'
+              ? 'Catalog'
+              : page === 'providers'
+                ? 'Providers'
+                : 'Projects'
     document.title = `${title} · MWIDE`
   }, [page, projectForm, selectedProject?.name])
-  const navigate = async (next: Page) => {
+  const navigate = async (next: WorkspacePage) => {
+    if (page === next && !projectForm) return
     if (!(await workspace.confirmDiscard())) return
     setPage(next)
     setProjectForm(null)
-    setSelectedProjectId(null)
     workspace.clearError()
   }
   const saveProject = async (draft: ProjectDraft) => {
@@ -60,125 +73,79 @@ export default function App(): JSX.Element {
         if (created) setSelectedProjectId(created.id)
       }
       setProjectForm(null)
+      setPage('workspace')
     }
   }
   const openProject = async (id: string) => {
     if (!(await workspace.confirmDiscard())) return
-    setPage('projects')
+    setPage('workspace')
     setProjectForm(null)
     setSelectedProjectId(id)
     workspace.clearError()
   }
   const createProject = async () => {
     if (!(await workspace.confirmDiscard())) return
-    setPage('projects')
+    setPage('workspace')
     setSelectedProjectId(null)
     setProjectForm('new')
     workspace.clearError()
   }
-  const nav: { id: Page; label: string; icon: IconName; caption: string }[] = [
-    { id: 'projects', label: 'Projects', icon: 'projects', caption: 'Your work, in context' },
-    { id: 'catalog', label: 'Catalog', icon: 'catalog', caption: 'MCPs & Skills' },
-    { id: 'providers', label: 'Providers', icon: 'providers', caption: 'Models & connections' },
-  ]
+  const selectConversation = async (id: string) => {
+    if (!selectedProject || !(await workspace.confirmDiscard())) return
+    setSelectedConversations((previous) => ({ ...previous, [selectedProject.id]: id }))
+    setProjectForm(null)
+    setPage('workspace')
+    workspace.clearError()
+  }
+  const newConversation = async () => {
+    if (!selectedProject || !(await workspace.confirmDiscard())) return
+    setProjectForm(null)
+    setPage('workspace')
+    const next = await workspace.mutate((bridge) => bridge.createConversation(selectedProject.id))
+    const created = next?.conversations.find(
+      (item) =>
+        item.projectId === selectedProject.id &&
+        !conversations.some((previous) => previous.id === item.id),
+    )
+    if (created) {
+      setSelectedConversations((previous) => ({ ...previous, [selectedProject.id]: created.id }))
+    }
+  }
   return (
     <>
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
       <div className="app-shell">
-        <aside className="sidebar" aria-label="Main navigation">
-          <Brand />
-          <button
-            className="button sidebar-create"
-            disabled={locked || projectForm === 'new'}
-            title={projectForm === 'new' ? 'A new project is already open' : undefined}
-            onClick={() => void createProject()}
-          >
-            <Icon name="plus" size={17} />
-            <span>New project</span>
-          </button>
-          <p className="nav-label">WORKSPACE</p>
-          <nav>
-            {nav.map((item) => (
-              <button
-                className={`nav-item ${page === item.id ? 'nav-active' : ''}`}
-                key={item.id}
-                aria-current={page === item.id ? 'page' : undefined}
-                disabled={locked}
-                onClick={() => void navigate(item.id)}
-              >
-                <Icon name={item.icon} />
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.caption}</small>
-                </span>
-                {page === item.id && <span className="nav-active-dot" aria-hidden="true" />}
-              </button>
-            ))}
-          </nav>
-          <div className="sidebar-projects">
-            <div className="sidebar-section-heading">
-              <span className="nav-label">PROJECTS</span>
-              <span className="utility-count">{projects.length}</span>
-            </div>
-            {projects.length ? (
-              <div className="sidebar-project-list">
-                {projects.map((project) => (
-                  <button
-                    key={project.id}
-                    className={`sidebar-project ${selectedProjectId === project.id ? 'selected' : ''}`}
-                    disabled={locked}
-                    aria-current={selectedProjectId === project.id ? 'page' : undefined}
-                    onClick={() => void openProject(project.id)}
-                    title={project.name}
-                  >
-                    <Icon name="projects" size={15} />
-                    <span>{project.name}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="sidebar-empty">A place for your next idea.</p>
-            )}
-          </div>
-          <div className="sidebar-footer">
-            <span className="footer-label">DEFAULT MODEL</span>
-            <button
-              className="model-switcher"
-              disabled={locked}
-              onClick={() => void navigate('providers')}
-              aria-label="Configure the default model"
-            >
-              <span className="model-switcher-icon">
-                <Icon name="terminal" size={17} />
-              </span>
-              <span>
-                <strong>
-                  {settings
-                    ? settings.defaultProvider === 'ollama'
-                      ? 'Ollama'
-                      : 'ChatGPT / Codex'
-                    : 'Not configured'}
-                </strong>
-                <small>{model || 'Choose a model'}</small>
-              </span>
-              <Icon name="chevronDown" size={14} />
-            </button>
-            <span className="sidebar-wordmark">
-              <span aria-hidden="true">⌘</span> Easy MCP and Skill Management
-            </span>
-          </div>
-        </aside>
+        <WorkspaceSidebar
+          page={page}
+          projects={projects}
+          project={selectedProject}
+          conversations={conversations}
+          activeConversationId={activeConversation?.id}
+          locked={locked}
+          creatingProject={projectForm === 'new'}
+          provider={
+            settings
+              ? settings.defaultProvider === 'ollama'
+                ? 'Ollama'
+                : 'ChatGPT / Codex'
+              : 'Not configured'
+          }
+          model={model}
+          onNavigate={(next) => void navigate(next)}
+          onProject={(id) => void openProject(id)}
+          onConversation={(id) => void selectConversation(id)}
+          onNewProject={() => void createProject()}
+          onNewConversation={() => void newConversation()}
+        />
         <main id="main-content" className="main-panel" tabIndex={-1}>
           <header className="app-topbar">
             <div className="workspace-path">
               <Icon name="terminal" size={16} />
               <span>workspace</span>
               <span className="path-separator">/</span>
-              <strong>
-                {page === 'catalog' ? 'catalog' : page === 'providers' ? 'providers' : 'projects'}
-              </strong>
+              <strong>{page === 'workspace' ? (selectedProject?.name ?? 'home') : page}</strong>
             </div>
             <span className="workspace-mode">
               MWIDE <span aria-hidden="true">·</span> Desktop workspace
@@ -245,13 +212,14 @@ export default function App(): JSX.Element {
                 editing={projectForm === 'edit'}
               />
             </div>
-          ) : selectedProject ? (
+          ) : selectedProject && page === 'workspace' ? (
             <ChatWorkspace
               key={selectedProject.id}
               project={selectedProject}
               workspace={workspace}
-              onBack={() => setSelectedProjectId(null)}
               onEdit={() => setProjectForm('edit')}
+              conversationId={activeConversation?.id}
+              onNewConversation={() => void newConversation()}
             />
           ) : (
             <div className="page-content projects-page">
@@ -340,7 +308,7 @@ export default function App(): JSX.Element {
                         className="project-card"
                         key={project.id}
                         disabled={locked}
-                        onClick={() => setSelectedProjectId(project.id)}
+                        onClick={() => void openProject(project.id)}
                       >
                         <span className="project-card-icon">
                           <Icon name="projects" />

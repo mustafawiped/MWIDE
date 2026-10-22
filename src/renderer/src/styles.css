@@ -1026,7 +1026,7 @@ svg {
   display: flex;
   height: calc(100dvh - 82px);
   min-height: 590px;
-  flex: 1;
+  flex: none;
   flex-direction: column;
 }
 .chat-topbar {
@@ -1056,10 +1056,9 @@ svg {
   margin-left: auto;
 }
 .workspace-layout {
-  display: grid;
+  display: flex;
   min-height: 0;
   flex: 1;
-  grid-template-columns: 210px minmax(0, 1fr);
 }
 .conversations-panel {
   display: flex;
@@ -2082,5 +2081,215 @@ svg {
   }
   .memory-badge {
     font-size: 10px;
+  }
+}
+
+/* One navigation rail keeps project history beside the focused conversation. */
+.workspace-menu {
+  margin-top: 28px;
+}
+.workspace-menu > summary,
+.project-switcher > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  list-style: none;
+  color: var(--secondary);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+}
+.workspace-menu > summary::-webkit-details-marker,
+.project-switcher > summary::-webkit-details-marker {
+  display: none;
+}
+.workspace-menu > summary > span,
+.project-switcher > summary > span {
+  flex: 1;
+  min-width: 0;
+}
+.workspace-menu > summary:hover,
+.project-switcher > summary:hover {
+  background: var(--hover);
+  color: var(--primary);
+}
+.workspace-menu[open] > summary,
+.project-switcher[open] > summary {
+  color: var(--primary);
+  background: var(--selected);
+}
+.workspace-menu[open] > summary > svg:last-child,
+.project-switcher[open] > summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.workspace-menu nav {
+  margin-top: 6px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.workspace-menu .nav-item {
+  padding: 10px 12px;
+}
+.workspace-menu .nav-item strong {
+  font-size: 12px;
+}
+.workspace-menu .nav-item small {
+  font-size: 10px;
+}
+.project-switcher {
+  margin-top: 16px;
+}
+.project-switcher > summary {
+  color: var(--primary);
+  background: var(--main);
+  border-color: var(--border);
+}
+.project-switcher > summary > span {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.project-switcher summary small {
+  font-family: var(--font-utility);
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.8px;
+}
+.project-switcher summary strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+.project-switcher-list {
+  display: grid;
+  max-height: 220px;
+  overflow: auto;
+  margin-top: 6px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.project-switcher-list .sidebar-create {
+  margin: 4px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.sidebar-new-chat {
+  flex: none;
+  margin-top: 12px;
+  justify-content: flex-start;
+  padding: 10px 12px;
+}
+.sidebar-history {
+  display: flex;
+  flex: 1;
+  min-height: 80px;
+  flex-direction: column;
+  margin-top: 30px;
+}
+.sidebar-history .nav-label {
+  display: block;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 400;
+}
+.sidebar-history .sidebar-section-heading {
+  flex: none;
+}
+.sidebar-history .conversation-list {
+  margin-top: 8px;
+  overflow: auto;
+}
+.sidebar-history .conversation-item {
+  width: 100%;
+  padding: 11px 12px;
+  font-size: 12px;
+}
+.sidebar-history .sidebar-empty {
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.sidebar > .sidebar-footer {
+  flex: none;
+  padding-top: 16px;
+}
+.chat-main {
+  height: 100%;
+}
+.chat-topbar {
+  gap: 12px;
+}
+.project-utility {
+  margin-left: 4px;
+}
+.workspace-path {
+  min-width: 0;
+}
+.workspace-path strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .sidebar {
+    display: flex;
+    height: auto;
+    padding: 18px 20px;
+    gap: 0;
+  }
+  .sidebar .brand {
+    margin-bottom: 8px;
+  }
+  .workspace-menu {
+    margin-top: 8px;
+  }
+  .workspace-menu nav {
+    display: grid;
+    margin-top: 6px;
+  }
+  .workspace-menu .nav-item {
+    justify-content: flex-start;
+  }
+  .workspace-menu .nav-item small {
+    display: block;
+  }
+  .project-switcher {
+    margin-top: 12px;
+  }
+  .sidebar-new-chat {
+    align-self: stretch;
+  }
+  .sidebar-history {
+    margin-top: 22px;
+    min-height: 0;
+  }
+  .sidebar-history .conversation-list {
+    display: grid;
+    max-height: 180px;
+  }
+  .sidebar-history .conversation-item {
+    max-width: none;
+    flex: auto;
+  }
+  .sidebar > .sidebar-footer {
+    display: none;
+  }
+  .sidebar-history .sidebar-empty {
+    margin-bottom: 0;
+  }
+  .project-workspace {
+    height: 750px;
+  }
+  .chat-main {
+    max-width: 100%;
   }
 }
