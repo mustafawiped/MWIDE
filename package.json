@@ -1,0 +1,45 @@
+{
+  "name": "mwide",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Easy MCP and Skill Management",
+  "type": "module",
+  "main": "./out/main/index.cjs",
+  "author": "mustafawiped",
+  "engines": {
+    "node": ">=24.11.0",
+    "pnpm": ">=11.25.0"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.0.0",
+    "electron-vite": "6.0.0",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vite": "8.3.5"
+  }
+}
