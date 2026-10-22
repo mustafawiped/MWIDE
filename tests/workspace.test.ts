@@ -30,7 +30,12 @@ class MemoryStore implements WorkspaceRepository {
 }
 
 function setup(
-  readFolder?: (path: string, signal: AbortSignal, maximumBytes?: number) => Promise<string>,
+  readFolder?: (
+    path: string,
+    signal: AbortSignal,
+    maximumBytes?: number,
+    queryText?: string,
+  ) => Promise<string>,
 ) {
   const store = new MemoryStore()
   store.state.settings = {
@@ -455,11 +460,11 @@ test('cancellation during the preflight memory save never accepts the pending us
 })
 
 test('folder maps refresh before new chats and every prompt without entering canonical records', async () => {
-  const reads: { path: string; maximumBytes?: number }[] = []
+  const reads: { path: string; maximumBytes?: number; queryText?: string }[] = []
   let map = 'src/first.ts: function first'
-  const fixture = setup(async (path, signal, maximumBytes) => {
+  const fixture = setup(async (path, signal, maximumBytes, queryText) => {
     signal.throwIfAborted()
-    reads.push({ path, maximumBytes })
+    reads.push({ path, maximumBytes, queryText })
     return map
   })
   const state = await fixture.service.createProject({
@@ -474,6 +479,8 @@ test('folder maps refresh before new chats and every prompt without entering can
     content: 'Where is added?',
   })
   assert.equal(reads.length, 2)
+  assert.equal(reads[0].queryText, undefined)
+  assert.equal(reads[1].queryText, 'Where is added?')
   assert.ok(fixture.requests.at(-1)!.instructions.includes(map))
   assert.ok(!fixture.requests.at(-1)!.instructions.includes('src/first.ts'))
   const second = await fixture.service.createConversation(state.projects[0].id)

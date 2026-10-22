@@ -7,6 +7,9 @@ const workspace: WorkspaceBridge = Object.freeze<WorkspaceBridge>({
   inspectProvider: (id) => ipcRenderer.invoke('mwide:request', 'inspectProvider', id),
   getCodexUsageLimits: () => ipcRenderer.invoke('mwide:request', 'getCodexUsageLimits'),
   selectProjectFolder: () => ipcRenderer.invoke('mwide:request', 'selectProjectFolder'),
+  inspectProjectCode: (projectId) =>
+    ipcRenderer.invoke('mwide:request', 'inspectProjectCode', projectId),
+  queryProjectCode: (input) => ipcRenderer.invoke('mwide:request', 'queryProjectCode', input),
   signInCodex: () => ipcRenderer.invoke('mwide:request', 'signInCodex'),
   saveCatalogItem: (item) => ipcRenderer.invoke('mwide:request', 'saveCatalogItem', item),
   removeCatalogItem: (id) => ipcRenderer.invoke('mwide:request', 'removeCatalogItem', id),

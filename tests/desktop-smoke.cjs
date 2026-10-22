@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict')
-const { mkdtemp, mkdir, readFile, realpath, writeFile } = require('node:fs/promises')
+const { mkdtemp, mkdir, readFile, realpath, rm, writeFile } = require('node:fs/promises')
 const http = require('node:http')
 const { tmpdir } = require('node:os')
 const { dirname, join, resolve } = require('node:path')
@@ -94,7 +94,7 @@ async function run() {
   await Promise.all([
     writeFile(
       join(selectedFolder, 'src', 'entry.ts'),
-      'export function initialProjectEntry() { return true }\n',
+      'export function normalizeValue() { return true }\nexport function initialProjectEntry() { return normalizeValue() }\n',
     ),
     writeFile(join(selectedFolder, '.env'), 'PRIVATE_TOKEN=must-never-reach-provider\n'),
     writeFile(join(selectedFolder, '.gitignore'), 'ignored-private.ts\n'),
@@ -852,6 +852,98 @@ async function run() {
   await evaluate('document.querySelector(".workspace-menu > summary").click()')
   await inspectLayout('workspace-menu')
   await click('Project context')
+  await click('Code index', '[role=tab]')
+  await until(
+    () =>
+      evaluate(
+        'Boolean(document.querySelector(".code-index-counts")) && !document.querySelector(".code-index-tools input").disabled',
+      ),
+    'persistent project graph in the real Electron worker',
+  )
+  await fill('.code-index-tools input', 'initialProjectEntry')
+  await click('Search symbols')
+  await until(
+    () =>
+      evaluate(
+        'Boolean(document.querySelector(".code-index-symbol")) && !document.querySelector(".code-index-symbol").disabled',
+      ),
+    'code symbol search',
+  )
+  await inspectLayout('project-code-index')
+  await click('Clear search')
+  assert.equal(await evaluate('document.querySelector(".code-index-tools input").value'), '')
+  assert.equal(
+    await evaluate('document.activeElement === document.querySelector(".code-index-tools input")'),
+    true,
+  )
+  await fill('.code-index-tools input', 'initialProjectEntry')
+  await click('Search symbols')
+  await until(
+    () =>
+      evaluate(
+        'Boolean(document.querySelector(".code-index-symbol")) && !document.querySelector(".code-index-symbol").disabled',
+      ),
+    'symbol search after clearing',
+  )
+  await evaluate('document.querySelector(".code-index-symbol").click()')
+  await until(
+    () =>
+      evaluate(
+        'document.querySelector(".code-index-results")?.textContent.includes("normalizeValue")',
+      ),
+    'statically resolved outgoing calls',
+  )
+  await inspectLayout('project-code-calls')
+  await fill('[aria-label="Call direction"]', 'inbound')
+  await until(
+    () =>
+      evaluate(
+        'document.querySelector(".code-index-empty")?.textContent.includes("No resolved calls")',
+      ),
+    'empty inbound calls are explicit',
+  )
+  const indexStatus = await evaluate(
+    `window.mwide.workspace.inspectProjectCode(${JSON.stringify(saved.id)})`,
+  )
+  assert.equal(indexStatus.parsedFiles, 0)
+  assert.equal(indexStatus.bytesRead, 0)
+  const cancellationFixture = join(selectedFolder, 'cancel-index-fixture')
+  await mkdir(cancellationFixture)
+  await writeFile(
+    join(cancellationFixture, '.gitignore'),
+    Array.from({ length: 300 }, (_, value) => `${'*a'.repeat(80)}z${value}.ts`).join('\n'),
+  )
+  await Promise.all(
+    Array.from({ length: 80 }, (_, value) =>
+      writeFile(
+        join(cancellationFixture, `${'a'.repeat(100)}-${value}.ts`),
+        'export function cancellationProbe() {}',
+      ),
+    ),
+  )
+  const cancelledIndex = await evaluate(`(async () => {
+    const pending = window.mwide.workspace.inspectProjectCode(${JSON.stringify(saved.id)}).then(() => 'completed', error => error.message);
+    await window.mwide.workspace.cancelOperation();
+    return pending;
+  })()`)
+  assert.match(cancelledIndex, /indexing cancelled/)
+  assert.equal(resolve(cancellationFixture), join(selectedFolder, 'cancel-index-fixture'))
+  await rm(cancellationFixture, { recursive: true })
+  const recoveredIndex = await evaluate(
+    `window.mwide.workspace.inspectProjectCode(${JSON.stringify(saved.id)})`,
+  )
+  assert.equal(recoveredIndex.parsedFiles, 0)
+  assert.equal(recoveredIndex.bytesRead, 0)
+  await assert.rejects(
+    evaluate(`window.mwide.workspace.inspectProjectCode("unknown-project")`),
+    (error) => /Save a project folder/.test(error.cause?.message || error.message),
+  )
+  await assert.rejects(
+    evaluate(
+      `window.mwide.workspace.queryProjectCode({projectId:${JSON.stringify(saved.id)},query:{type:"trace",symbolId:"x",direction:"outbound",depth:99}})`,
+    ),
+    (error) => /depth/.test(error.cause?.message || error.message),
+  )
   await click('Folder', '[role=tab]')
   assert.equal(
     await evaluate('document.querySelector(".project-folder-path").textContent'),

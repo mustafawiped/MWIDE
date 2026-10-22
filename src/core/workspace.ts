@@ -27,7 +27,12 @@ export interface WorkspaceRepository {
 
 type ProviderResolver = (settings: ProviderSettings) => ModelProvider
 type Operation = { controller: AbortController; conversationId?: string }
-type FolderReader = (path: string, signal: AbortSignal, maximumBytes?: number) => Promise<string>
+type FolderReader = (
+  path: string,
+  signal: AbortSignal,
+  maximumBytes?: number,
+  queryText?: string,
+) => Promise<string>
 
 export class WorkspaceService {
   private operation?: Operation
@@ -170,11 +175,12 @@ export class WorkspaceService {
     project: Project,
     signal: AbortSignal,
     maximumBytes = 18000,
+    queryText?: string,
   ): Promise<string> {
     if (!project.folderPath) return ''
     if (!this.readFolder)
       throw new Error('Project folder access is unavailable. Reopen MWIDE and retry.')
-    return this.readFolder(project.folderPath, signal, maximumBytes)
+    return this.readFolder(project.folderPath, signal, maximumBytes, queryText)
   }
 
   private async summarize(
@@ -452,6 +458,7 @@ export class WorkspaceService {
         project,
         signal,
         Math.min(18000, Math.floor((budget - baseBytes) / 2)),
+        input.content,
       )
       // JSON framing can expand paths/escapes; check the actual envelope before accepting the draft.
       const context = folderContext

@@ -23,7 +23,7 @@ async function fixture(t: TestContext, extraStartup = '') {
     workerPath,
     `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(starts)}, 'start\\n');\n${extraStartup}\nawait import(${JSON.stringify(scannerUrl.href)});\n`,
   )
-  const index = new FolderIndex(workerPath)
+  const index = new FolderIndex(workerPath, { cacheDirectory: join(directory, 'cache') })
   t.after(async () => {
     index.dispose()
     assert.ok(resolve(directory).startsWith(resolve(prefix)))
@@ -48,12 +48,13 @@ test('background maps reuse one worker and refresh added, removed and excluded f
   const first = await index.read(root)
   assert.match(first, /Before/)
   assert.doesNotMatch(first, /SECRET|ignored\.ts|\.env/)
-  assert.match(first, /not a verified call graph/)
+  assert.match(first, /static|TypeScript/i)
   await rm(join(root, 'before.ts'))
   await writeFile(join(root, 'after.ts'), 'export class After {}')
   const second = await index.read(root, undefined, 2_048)
   assert.match(second, /after\.ts/)
-  assert.doesNotMatch(second, /before\.ts|Before/)
+  assert.doesNotMatch(JSON.stringify(JSON.parse(second).entries), /before\.ts|Before/)
+  assert.deepEqual(JSON.parse(second).changes.deleted, ['before.ts'])
   assert.ok(Buffer.byteLength(second) <= 2_048)
   assert.ok(Buffer.byteLength(await index.read(root, undefined, 1_024)) <= 1_024)
   assert.equal(await startCount(), 1)
@@ -94,7 +95,7 @@ test('aborting active CPU work keeps the main event loop responsive and replaces
 
   await rm(join(root, '.gitignore'))
   await writeFile(join(root, 'replacement.ts'), 'export class Replacement {}')
-  const replacement = await index.read(root)
+  const replacement = await index.read(root, undefined, 18_000, 'Replacement')
   assert.match(replacement, /Replacement/)
   assert.equal(await startCount(), 2, 'The aborted worker must not be reused.')
 })
@@ -103,7 +104,7 @@ test('folder failures do not return a previous map and stored root redirections 
   const { index, root, directory, startCount } = await fixture(t)
   await writeFile(join(root, 'visible.ts'), 'export class Visible {}')
   await index.read(root)
-  await assert.rejects(index.read(join(root, 'missing')), /unavailable/)
+  await assert.rejects(index.read(join(root, 'missing')), /unavailable|ENOENT/)
   assert.match(await index.read(root), /Visible/)
   assert.equal(await startCount(), 1, 'A recoverable folder error should preserve the idle worker.')
   const outside = join(directory, 'outside')

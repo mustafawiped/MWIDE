@@ -1,3 +1,5 @@
+import type { CodeGraphQuery, CodeGraphResult, CodeIndexStatus } from './codegraph'
+
 export type ProviderId = 'codex' | 'ollama'
 export type CatalogKind = 'mcp' | 'skill'
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -105,6 +107,8 @@ export interface WorkspaceBridge {
   inspectProvider(id: ProviderId): Promise<ProviderStatus>
   getCodexUsageLimits(): Promise<CodexUsageLimits>
   selectProjectFolder(): Promise<string | null>
+  inspectProjectCode(projectId: string): Promise<CodeIndexStatus>
+  queryProjectCode(input: { projectId: string; query: CodeGraphQuery }): Promise<CodeGraphResult>
   signInCodex(): Promise<{ message: string }>
   saveCatalogItem(item: Omit<CatalogItem, 'id'> & { id?: string }): Promise<WorkspaceState>
   removeCatalogItem(id: string): Promise<WorkspaceState>

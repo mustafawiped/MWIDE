@@ -16,6 +16,7 @@ import {
 } from './ipc-policy.ts'
 import { canonicalProjectFolder } from './project-folder.ts'
 import { FolderIndex } from './folder-index.ts'
+import { parseCodeGraphQuery } from './codegraph-query.ts'
 import { batchChatEvents } from './chat-events.ts'
 import { WorkspaceStore } from './workspace-store.ts'
 
@@ -28,10 +29,13 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   let service: WorkspaceService | undefined
   let startupError: Error | undefined
   let codex: CodexProvider | undefined
+  let indexOperation: AbortController | undefined
   const ollamaProviders = new Map<string, OllamaProvider>()
   const selectedFolders = new Set<string>()
-  const folderIndex = new FolderIndex(join(__dirname, 'project-folder-worker.cjs'))
   const directory = app.getPath('userData')
+  const folderIndex = new FolderIndex(join(__dirname, 'project-folder-worker.cjs'), {
+    cacheDirectory: join(directory, 'code-index'),
+  })
   const codexProfile = join(directory, 'codex-profile')
   const codexWorkspace = join(directory, 'codex-workspace')
 
@@ -63,8 +67,11 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   try {
     await mkdir(directory, { recursive: true })
     const store = await WorkspaceStore.open(join(directory, 'workspace.json'))
-    service = new WorkspaceService(store, resolveProvider, delivery.emit, (path, signal, bytes) =>
-      folderIndex.read(path, signal, bytes),
+    service = new WorkspaceService(
+      store,
+      resolveProvider,
+      delivery.emit,
+      (path, signal, bytes, query) => folderIndex.read(path, signal, bytes, query),
     )
   } catch (error) {
     startupError = new Error(
@@ -99,6 +106,29 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
       }
       case 'getCodexUsageLimits':
         return getCodex().getUsageLimits()
+      case 'inspectProjectCode':
+      case 'queryProjectCode': {
+        const record = method === 'queryProjectCode' ? requireRecord(input) : undefined
+        const id = requireId(record ? record.projectId : input)
+        const state = await service.getState()
+        const project = state.projects.find((item) => item.id === id)
+        if (!project?.folderPath)
+          throw new Error('Save a project folder before opening its code index.')
+        if (indexOperation) throw new Error('A project code index operation is already running.')
+        const controller = new AbortController()
+        indexOperation = controller
+        try {
+          return await (record
+            ? folderIndex.query(
+                project.folderPath,
+                parseCodeGraphQuery(record.query),
+                controller.signal,
+              )
+            : folderIndex.inspect(project.folderPath, controller.signal))
+        } finally {
+          if (indexOperation === controller) indexOperation = undefined
+        }
+      }
       case 'selectProjectFolder': {
         const owner = BrowserWindow.fromWebContents(event.sender)
         if (!owner) throw new Error('The project window is no longer available.')
@@ -165,6 +195,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
       case 'cancelMessage':
         return service.cancelMessage(requireId(input))
       case 'cancelOperation':
+        indexOperation?.abort(new DOMException('Project indexing cancelled.', 'AbortError'))
         return service.cancelOperation()
       default:
         throw new Error('Unknown workspace operation.')
@@ -175,6 +206,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
     dispose(): void {
       ipcMain.removeHandler('mwide:request')
       service?.dispose()
+      indexOperation?.abort()
       delivery.dispose()
       folderIndex.dispose()
       codex?.dispose()

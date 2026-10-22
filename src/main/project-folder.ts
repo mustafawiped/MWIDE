@@ -70,7 +70,7 @@ const sourceExtensions = new Set([
   '.prisma',
 ])
 
-interface IgnoreRule {
+export interface IgnoreRule {
   base: string
   pattern: { test: (value: string) => boolean }
   negate: boolean
@@ -89,11 +89,11 @@ function aborted(signal?: AbortSignal): void {
   signal?.throwIfAborted()
 }
 
-function samePath(left: string, right: string): boolean {
+export function samePath(left: string, right: string): boolean {
   return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
 }
 
-function inside(root: string, path: string): boolean {
+export function inside(root: string, path: string): boolean {
   const child = relative(root, path)
   return child !== '' && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child)
 }
@@ -102,7 +102,7 @@ function slash(path: string): string {
   return path.split(sep).join('/')
 }
 
-function hiddenSecret(name: string, directory: boolean): boolean {
+export function hiddenSecret(name: string, directory: boolean): boolean {
   const lower = name.toLowerCase()
   if (directory && excludedDirectories.has(lower)) return true
   return (
@@ -204,7 +204,7 @@ function globMatcher(pattern: string, anchored: boolean): IgnoreRule['pattern'] 
   }
 }
 
-function ignoreRules(text: string, base: string): IgnoreRule[] {
+export function ignoreRules(text: string, base: string): IgnoreRule[] {
   const rules: IgnoreRule[] = []
   for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
     let end = rawLine.length
@@ -228,7 +228,7 @@ function ignoreRules(text: string, base: string): IgnoreRule[] {
   return rules
 }
 
-function ignored(path: string, directory: boolean, rules: IgnoreRule[]): boolean {
+export function ignored(path: string, directory: boolean, rules: IgnoreRule[]): boolean {
   let match = false
   for (const rule of rules) {
     if (rule.directoryOnly && !directory) continue
@@ -239,7 +239,7 @@ function ignored(path: string, directory: boolean, rules: IgnoreRule[]): boolean
   return match
 }
 
-async function safePrefix(root: string, path: string, maximum: number): Promise<string> {
+export async function safePrefix(root: string, path: string, maximum: number): Promise<string> {
   const before = await lstat(path)
   if (before.isSymbolicLink() || !before.isFile() || before.nlink > 1) return ''
   const canonical = await realpath(path)

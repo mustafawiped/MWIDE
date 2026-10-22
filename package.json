@@ -23,12 +23,14 @@
     "test:desktop": "electron tests/desktop-smoke.cjs",
     "benchmark:core": "node --experimental-strip-types tests/performance-core.mjs",
     "benchmark:desktop": "node tests/benchmark-desktop.mjs",
+    "benchmark:codegraph": "node --experimental-strip-types tests/benchmark-codegraph.mjs",
     "benchmark": "pnpm benchmark:core && pnpm benchmark:desktop",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check"
   },
   "dependencies": {
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "typescript": "6.0.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -43,7 +45,6 @@
     "eslint-plugin-react-refresh": "0.5.7",
     "globals": "17.13.0",
     "prettier": "3.9.10",
-    "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
     "vite": "8.3.5"
   }

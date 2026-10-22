@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a persistent TypeScript/JavaScript AST code graph with static call/import resolution, incremental extraction, atomic SQLite generations, and cancellation recovery.
+- Added project Code index search and caller/callee inspection, with source locations, change counts, and explicit coverage limits.
+- Connected query-focused code evidence to chat and published a five-sample comparison against Codebase Memory 0.11.0 fast mode.
 - Reduced long-chat rendering with memoized messages, earlier-history paging, and lossless stream batching.
 - Removed unnecessary AI summary calls on short chat handoffs; compact larger archives when the actual model budget requires it.
 - Moved project-folder scanning to a reusable, cancellable background worker.

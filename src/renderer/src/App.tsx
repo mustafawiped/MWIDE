@@ -277,6 +277,7 @@ export default function App(): JSX.Element {
                   if (await workspace.confirmDiscard()) setProjectForm(null)
                 }}
                 editing={projectForm === 'edit'}
+                projectId={projectForm === 'edit' ? selectedProject?.id : undefined}
               />
             </div>
           ) : selectedProject && page === 'workspace' ? (

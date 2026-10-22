@@ -5,9 +5,10 @@ import type { WorkspaceController } from './useWorkspace'
 import { Icon, Textarea } from './ui'
 import { focusInvalidField } from './formValidation'
 import { CompactTabs } from './CompactTabs'
+import { ProjectCodeIndex } from './ProjectCodeIndex'
 import './chat-controls.css'
 
-type ProjectSection = 'brief' | 'folder' | 'rules' | 'architecture' | 'toolkit'
+type ProjectSection = 'brief' | 'folder' | 'index' | 'rules' | 'architecture' | 'toolkit'
 const catalogPageSize = 2
 
 export function ProjectEditor({
@@ -17,6 +18,7 @@ export function ProjectEditor({
   onSave,
   onCancel,
   editing = false,
+  projectId,
 }: {
   initial: ProjectDraft
   catalog: CatalogItem[]
@@ -24,6 +26,7 @@ export function ProjectEditor({
   onSave: (draft: ProjectDraft) => Promise<void>
   onCancel: () => void
   editing?: boolean
+  projectId?: string
 }): JSX.Element {
   const [draft, setDraft] = useState<ProjectDraft>(() => ({
     ...initial,
@@ -113,6 +116,7 @@ export function ProjectEditor({
         tabs={[
           { value: 'brief', label: 'Brief', invalid: Boolean(errors.name || errors.description) },
           { value: 'folder', label: 'Folder' },
+          { value: 'index', label: 'Code index' },
           { value: 'rules', label: 'Rules' },
           { value: 'architecture', label: 'Architecture' },
           { value: 'toolkit', label: 'MCPs & Skills' },
@@ -209,12 +213,19 @@ export function ProjectEditor({
               )}
             </div>
             <p className="project-folder-description">
-              MWIDE refreshes the file hierarchy and source hints automatically for new chats and
-              replies, then shares that map with your selected AI. This provides orientation, not
-              complete file access. Dependencies, ignored files, and common secret files are
-              excluded.
+              MWIDE refreshes the file map and static TypeScript / JavaScript symbols and calls for
+              chats, then shares relevant evidence with your selected AI. Other languages include
+              file paths only. Dependencies, ignored files, and common secret files are excluded.
             </p>
           </div>
+        )}
+        {activeTab === 'index' && (
+          <ProjectCodeIndex
+            projectId={projectId}
+            folderPath={draft.folderPath}
+            folderSaved={(draft.folderPath || '') === (initial.folderPath || '')}
+            workspace={workspace}
+          />
         )}
         {activeTab === 'rules' && (
           <div
