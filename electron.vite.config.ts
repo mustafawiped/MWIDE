@@ -1,15 +1,22 @@
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'electron-vite'
 
 export default defineConfig({
   main: {
     build: {
       lib: {
+        entry: {
+          index: fileURLToPath(new URL('./src/main/index.ts', import.meta.url)),
+          'project-folder-worker': fileURLToPath(
+            new URL('./src/main/project-folder-worker.ts', import.meta.url),
+          ),
+        },
         formats: ['cjs'],
       },
       rollupOptions: {
         output: {
-          entryFileNames: 'index.cjs',
+          entryFileNames: '[name].cjs',
         },
       },
     },

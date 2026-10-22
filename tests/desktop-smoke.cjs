@@ -547,8 +547,13 @@ async function run() {
     join(selectedFolder, 'src', 'later.ts'),
     'export function freshlyAddedEntry() { return true }\n',
   )
+  const callsBeforeHandoff = requests.length
   await evaluate(`document.querySelector('[aria-label="New conversation"]').click()`)
-  await until(async () => (await state()).conversations.length === 2, 'cross-chat summary')
+  await until(
+    async () => (await state()).conversations.length === 2,
+    'new chat without an AI request',
+  )
+  assert.equal(requests.length, callsBeforeHandoff)
   await until(
     () => evaluate('!document.querySelector("#chat-message").disabled'),
     'second conversation',
@@ -562,7 +567,8 @@ async function run() {
   const context = requests.at(-1).messages[0].content
   for (const field of ['description', 'rules', 'architecture'])
     assert.ok(context.includes(project[field]))
-  assert.ok(context.includes(summary))
+  assert.ok(context.includes('Remember the architecture decision'))
+  assert.ok(context.includes('The project context is available.'))
   assert.ok(context.includes('Verify outcomes before committing.'))
   assert.ok(context.includes('src/later.ts'))
   assert.ok(context.includes('freshlyAddedEntry'))

@@ -4,7 +4,8 @@ import { WorkspaceService } from '../src/core/workspace.ts'
 import type { WorkspaceRepository } from '../src/core/workspace.ts'
 import { initialState, assertWorkspaceState } from '../src/core/validation.ts'
 import type { GenerationRequest, ModelProvider } from '../src/core/model.ts'
-import type { ChatEvent, WorkspaceState } from '../src/shared/contracts.ts'
+import type { ChatEvent, Conversation, WorkspaceState } from '../src/shared/contracts.ts'
+import { contextInputBytes } from '../src/core/memory.ts'
 
 const brief = {
   name: 'MWIDE test',
@@ -82,6 +83,39 @@ async function newChat(fixture: ReturnType<typeof setup>) {
   return { project, conversation: next.conversations[0] }
 }
 
+function appendHistory(conversation: Conversation, prefix: string, lengths: number[]): void {
+  for (const [index, length] of lengths.entries())
+    conversation.messages.push({
+      id: `${prefix}-${index}`,
+      role: index % 2 ? 'assistant' : 'user',
+      content: `${prefix}: ${'İ🧭x'.repeat(length)}`,
+      createdAt: conversation.createdAt,
+      status: 'complete',
+    })
+}
+
+function enforceProviderBudget(fixture: ReturnType<typeof setup>, budget: number): number[] {
+  const inputBytes: number[] = []
+  fixture.provider.getInputBudget = async () => budget
+  fixture.setBehavior(async (request) => {
+    const bytes =
+      Buffer.byteLength(
+        JSON.stringify([{ role: 'system', content: request.instructions }, ...request.messages]),
+        'utf8',
+      ) +
+      request.messages.length * 64 +
+      512
+    assert.ok(bytes <= budget, `Provider rejected ${bytes} bytes; declared budget is ${budget}`)
+    inputBytes.push(bytes)
+    for (const canonical of [brief.description, brief.architecture, brief.rules])
+      assert.ok(request.instructions.includes(canonical))
+    return request.instructions.includes('Update a compact conversation memory')
+      ? 'FIXTURE_DECISION: retain adapter boundaries. FIXTURE_FAILURE: deployment failed; retry pending.'
+      : 'Continue with the recorded decision and unresolved failure.'
+  })
+  return inputBytes
+}
+
 test('projects and user catalog selections persist without modifying canonical context', async () => {
   const fixture = setup()
   const catalog = await fixture.service.saveCatalogItem({
@@ -137,6 +171,8 @@ test('streamed answers are saved once with complete canonical context', async ()
   assert.ok(fixture.requests[0].instructions.includes(brief.rules))
   assert.deepEqual(fixture.requests[0].messages, [{ role: 'user', content: 'Start the project' }])
   assert.equal(fixture.events.filter((event) => event.type === 'delta').length, 1)
+  const delta = fixture.events.find((event) => event.type === 'delta')!
+  assert.equal(delta.replyId, result.conversations[0].messages[1].id)
 })
 
 test('failure before acceptance preserves the draft and adds no messages', async () => {
@@ -205,8 +241,9 @@ test('cancellation saves a terminal interrupted response and releases the operat
   await fixture.service.saveSettings(state.settings)
 })
 
-test('new conversations summarize prior chats before creation and include memory in the next request', async () => {
+test('short chat handoffs keep exact history without a summary request', async () => {
   const fixture = setup()
+  const bytes = enforceProviderBudget(fixture, 9000)
   const { project, conversation } = await newChat(fixture)
   await fixture.service.sendMessage({
     conversationId: conversation.id,
@@ -214,27 +251,141 @@ test('new conversations summarize prior chats before creation and include memory
   })
   const state = await fixture.service.createConversation(project.id)
   assert.equal(state.conversations.length, 2)
-  assert.equal(state.conversations[0].summaryThrough, 2)
-  assert.ok(state.conversations[0].summary.length <= 1600)
+  assert.equal(state.conversations[0].summaryThrough, 0)
+  assert.equal(state.conversations[0].summary, '')
+  assert.equal(fixture.requests.length, 1, 'creating a chat does not call the model')
   await fixture.service.sendMessage({
     conversationId: state.conversations[1].id,
     content: 'Continue in a new chat',
   })
   const request = fixture.requests.at(-1)!
-  assert.ok(request.instructions.includes('Decision: keep focused modules.'))
+  assert.equal(fixture.requests.length, 2, 'one generation per user prompt, with no compaction')
+  assert.ok(request.instructions.includes('Remember the architecture decision'))
+  assert.ok(request.instructions.includes('Continue with the recorded decision'))
+  assert.equal(bytes.length, 2)
+  assert.ok(bytes.reduce((total, value) => total + value, 0) > 0)
   assert.ok(request.instructions.includes(brief.description))
   assert.ok(request.instructions.includes(brief.architecture))
   assert.equal(fixture.store.snapshot().projects[0].architecture, project.architecture)
 })
 
-test('invalid or cancelled summaries preserve old history and do not create a new chat', async () => {
+test('short project histories preserve decisions and failed work verbatim without leaking another project', async () => {
+  const fixture = setup()
+  const { project } = await newChat(fixture)
+  const first = fixture.store.state.conversations[0]
+  appendHistory(first, 'EXACT_DECISION: keep adapters separate', [1, 1])
+  first.messages[1].status = 'failed'
+  first.messages[1].content = 'EXACT_FAILURE: deployment failed; keep retry pending.'
+  await fixture.service.createConversation(project.id)
+  const second = fixture.store.state.conversations[1]
+  appendHistory(second, 'SECOND_EXACT_RECORD', [1, 1])
+  second.summary = 'Existing memory must remain present.'
+  const foreign = await fixture.service.createProject({
+    ...brief,
+    name: 'Other project',
+    description: 'FOREIGN_CANONICAL_SECRET',
+  })
+  await fixture.service.createConversation(foreign.projects[1].id)
+  appendHistory(fixture.store.state.conversations[2], 'FOREIGN_HISTORY_SECRET', [80, 80])
+  await fixture.service.createConversation(project.id)
+  const before = fixture.store.snapshot()
+  const bytes = enforceProviderBudget(fixture, 9000)
+
+  await fixture.service.sendMessage({
+    conversationId: before.conversations[3].id,
+    content: 'Continue this project 🧭',
+  })
+
+  assert.equal(fixture.requests.length, 1)
+  assert.equal(bytes.length, 1)
+  const request = fixture.requests[0]
+  for (const text of [
+    ...before.conversations[0].messages.map((message) => message.content),
+    ...before.conversations[1].messages.map((message) => message.content),
+    second.summary,
+  ])
+    assert.ok(request.instructions.includes(text))
+  assert.match(request.instructions, /failed response; do not treat as completed work/)
+  assert.ok(!request.instructions.includes('FOREIGN_'))
+  for (let index = 0; index < 3; index++)
+    assert.deepEqual(fixture.store.state.conversations[index], before.conversations[index])
+})
+
+test('budget pressure compacts the largest archive first and preserves recent active pairs and small histories', async () => {
+  const fixture = setup()
+  const { project } = await newChat(fixture)
+  const largest = fixture.store.state.conversations[0]
+  appendHistory(largest, 'LARGEST_ARCHIVE', [110, 110, 110, 110, 110, 110, 110, 110])
+  largest.messages[1].status = 'failed'
+  await fixture.service.createConversation(project.id)
+  appendHistory(fixture.store.state.conversations[1], 'SMALL_ARCHIVE', [5, 5])
+  await fixture.service.createConversation(project.id)
+  appendHistory(fixture.store.state.conversations[2], 'ACTIVE_RECENT_PAIR', [10, 10, 10, 10])
+  const before = fixture.store.snapshot()
+  const bytes = enforceProviderBudget(fixture, 5000)
+
+  await fixture.service.sendMessage({
+    conversationId: before.conversations[2].id,
+    content: 'Continue with decisions and failures',
+  })
+
+  const summaries = fixture.requests.filter((request) =>
+    request.instructions.includes('Update a compact conversation memory'),
+  )
+  const replies = fixture.requests.filter((request) => request.onDelta)
+  assert.ok(summaries.length >= 1)
+  assert.equal(replies.length, 1)
+  assert.ok(summaries[0].messages[0].content.includes('LARGEST_ARCHIVE'))
+  assert.ok(!summaries[0].messages[0].content.includes('SMALL_ARCHIVE'))
+  assert.equal(fixture.store.state.conversations[0].summaryThrough, 8)
+  assert.equal(fixture.store.state.conversations[1].summaryThrough, 0)
+  assert.equal(fixture.store.state.conversations[2].summaryThrough, 0)
+  assert.match(replies[0].instructions, /FIXTURE_DECISION.*FIXTURE_FAILURE/)
+  assert.ok(replies[0].instructions.includes('SMALL_ARCHIVE'))
+  assert.deepEqual(
+    replies[0].messages.slice(0, 4),
+    before.conversations[2].messages.map(({ role, content }) => ({ role, content })),
+  )
+  assert.deepEqual(fixture.store.state.conversations[0].messages, before.conversations[0].messages)
+  assert.equal(bytes.length, fixture.requests.length)
+  assert.ok(bytes.every((value) => value <= 5000))
+})
+
+test('new chats open independently of the model and retain earlier failed work exactly', async () => {
   const fixture = setup()
   const { project, conversation } = await newChat(fixture)
+  fixture.setBehavior(async () => {
+    throw new Error('The old attempt failed')
+  })
   await fixture.service.sendMessage({ conversationId: conversation.id, content: 'Remember' })
+  const history = structuredClone(fixture.store.state.conversations[0])
+  fixture.store.state.settings.ollamaModel = ''
+  const state = await fixture.service.createConversation(project.id)
+  assert.equal(state.conversations.length, 2)
+  assert.deepEqual(state.conversations[0], history)
+  assert.equal(fixture.requests.length, 1)
+})
+
+test('invalid or cancelled budget summaries preserve history and the pending draft', async () => {
+  const fixture = setup()
+  const { conversation } = await newChat(fixture)
+  const old = fixture.store.state.conversations[0]
+  for (let index = 0; index < 4; index++)
+    old.messages.push({
+      id: `before-summary-${index}`,
+      role: index % 2 ? 'assistant' : 'user',
+      content: 'Remember this earlier content. '.repeat(80),
+      status: 'complete',
+      createdAt: conversation.createdAt,
+    })
+  const saved = fixture.store.snapshot()
+  fixture.provider.getInputBudget = async () => 5000
   fixture.setBehavior(async () => 'x'.repeat(1601))
-  await assert.rejects(fixture.service.createConversation(project.id), /invalid summary/)
-  assert.equal(fixture.store.snapshot().conversations.length, 1)
-  assert.equal(fixture.store.snapshot().conversations[0].summaryThrough, 0)
+  await assert.rejects(
+    fixture.service.sendMessage({ conversationId: conversation.id, content: 'Keep this draft' }),
+    /invalid summary/,
+  )
+  assert.deepEqual(fixture.store.snapshot(), saved)
   let began!: () => void
   const ready = new Promise<void>((resolve) => {
     began = resolve
@@ -250,11 +401,14 @@ test('invalid or cancelled summaries preserve old history and do not create a ne
         began()
       }),
   )
-  const running = fixture.service.createConversation(project.id)
+  const running = fixture.service.sendMessage({
+    conversationId: conversation.id,
+    content: 'Keep this draft',
+  })
   await ready
   await fixture.service.cancelOperation()
   await assert.rejects(running, /Stopped/)
-  assert.equal(fixture.store.snapshot().conversations.length, 1)
+  assert.deepEqual(fixture.store.snapshot(), saved)
 })
 
 test('automatic compaction preserves recent pairs and all canonical project fields', async () => {
@@ -330,7 +484,7 @@ test('folder maps refresh before new chats and every prompt without entering can
     content: 'Continue',
   })
   assert.ok(fixture.requests.at(-1)!.instructions.includes(map))
-  assert.ok(fixture.requests.at(-1)!.instructions.includes('Decision: keep focused modules.'))
+  assert.ok(fixture.requests.at(-1)!.instructions.includes('Where is added?'))
   assert.deepEqual(
     reads.map((read) => read.path),
     Array(4).fill('C:\\projects\\example'),
@@ -369,16 +523,56 @@ test('missing folder preserves pending draft and folder removal stops reading it
   assert.equal(fixture.store.state.conversations[0].messages.length, 2)
 })
 
+test('folder reserve compacts prior history before acceptance and bounds the complete escaped request', async () => {
+  const allowances: number[] = []
+  const fixture = setup(async (_path, _signal, maximumBytes = 0) => {
+    allowances.push(maximumBytes)
+    return 'Folder map "quoted" \\path 🧭\n'.repeat(Math.floor(maximumBytes / 50))
+  })
+  const state = await fixture.service.createProject({ ...brief, folderPath: 'C:\\project' })
+  await fixture.service.createConversation(state.projects[0].id)
+  appendHistory(fixture.store.state.conversations[0], 'FOLDER_ARCHIVE', [90, 90, 90, 90])
+  const oldMessages = structuredClone(fixture.store.state.conversations[0].messages)
+  const next = await fixture.service.createConversation(state.projects[0].id)
+  const bytes = enforceProviderBudget(fixture, 5000)
+
+  await fixture.service.sendMessage({
+    conversationId: next.conversations[1].id,
+    content: 'Continue with the fresh map',
+  })
+
+  assert.equal(fixture.store.state.conversations[0].summaryThrough, 4)
+  assert.deepEqual(fixture.store.state.conversations[0].messages, oldMessages)
+  assert.ok(allowances.at(-1)! >= 1024 && allowances.at(-1)! <= 18000)
+  assert.ok(fixture.requests.at(-1)!.instructions.includes('Folder map "quoted" \\path 🧭'))
+  assert.ok(bytes.every((value) => value <= 5000))
+})
+
+test('an oversized escaped folder map rejects the prompt before acceptance without truncating it', async () => {
+  let map = 'Small map'
+  const fixture = setup(async () => map)
+  const state = await fixture.service.createProject({ ...brief, folderPath: 'C:\\project' })
+  const chat = await fixture.service.createConversation(state.projects[0].id)
+  const saved = fixture.store.snapshot()
+  fixture.provider.getInputBudget = async () => 5000
+  map = '"\\🧭'.repeat(2000)
+  await assert.rejects(
+    fixture.service.sendMessage({
+      conversationId: chat.conversations[0].id,
+      content: 'Keep draft',
+    }),
+    /folder map exceeds/,
+  )
+  assert.deepEqual(fixture.store.snapshot(), saved)
+  assert.equal(fixture.requests.length, 0)
+})
+
 test('context budget automatically compacts history before accepting a prompt', async () => {
   const fixture = setup()
   const { conversation } = await newChat(fixture)
   fixture.provider.getInputBudget = async () => 4000
   fixture.setBehavior(async (request) => {
-    const bytes =
-      Buffer.byteLength(
-        JSON.stringify([{ role: 'system', content: request.instructions }, ...request.messages]),
-      ) +
-      request.messages.length * 64
+    const bytes = contextInputBytes(request)
     assert.ok(bytes <= 4000, `Provider input ${bytes} exceeds its declared context budget`)
     return request.instructions.includes('Update a compact conversation memory')
       ? 'Decisions from earlier content.'
@@ -393,10 +587,9 @@ test('context budget automatically compacts history before accepting a prompt', 
       createdAt: conversation.createdAt,
     })
   await fixture.service.sendMessage({ conversationId: conversation.id, content: 'Continue please' })
-  assert.equal(fixture.store.state.conversations[0].summaryThrough, 8)
-  assert.deepEqual(fixture.requests.at(-1)!.messages, [
-    { role: 'user', content: 'Continue please' },
-  ])
+  assert.ok(fixture.store.state.conversations[0].summaryThrough >= 4)
+  assert.equal(fixture.requests.at(-1)!.messages.at(-1)!.content, 'Continue please')
+  assert.ok(contextInputBytes(fixture.requests.at(-1)!) <= 4000)
   assert.ok(fixture.requests.at(-1)!.instructions.includes(brief.description))
 })
 
@@ -432,11 +625,7 @@ test('oversized historical messages are fully summarized in bounded Unicode-safe
   const history = structuredClone(current.messages)
   fixture.provider.getInputBudget = async () => 5000
   fixture.setBehavior(async (request) => {
-    const bytes =
-      Buffer.byteLength(
-        JSON.stringify([{ role: 'system', content: request.instructions }, ...request.messages]),
-      ) +
-      request.messages.length * 64
+    const bytes = contextInputBytes(request)
     assert.ok(bytes <= 5000, `Provider input ${bytes} exceeds its declared context budget`)
     for (const canonical of [brief.description, brief.architecture, brief.rules])
       assert.ok(request.instructions.includes(canonical))
@@ -584,8 +773,9 @@ test('explicit effort reaches Codex chat only and model changes restore the mode
     content: 'Reason carefully',
   })
   assert.equal(fixture.requests.at(-1)!.reasoningEffort, 'high')
+  const generated = fixture.requests.length
   await fixture.service.createConversation(fixture.store.state.projects[0].id)
-  assert.equal(fixture.requests.at(-1)!.reasoningEffort, undefined)
+  assert.equal(fixture.requests.length, generated)
   await fixture.service.saveSettings({ ...settings, codexModel: 'another-model' })
   assert.equal(fixture.store.state.settings.reasoningEffort, undefined)
   await fixture.service.saveSettings({ ...settings, defaultProvider: 'ollama' })

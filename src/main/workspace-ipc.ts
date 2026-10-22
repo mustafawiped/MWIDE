@@ -14,7 +14,9 @@ import {
   requireId,
   requireRecord,
 } from './ipc-policy.ts'
-import { canonicalProjectFolder, readProjectFolder } from './project-folder.ts'
+import { canonicalProjectFolder } from './project-folder.ts'
+import { FolderIndex } from './folder-index.ts'
+import { batchChatEvents } from './chat-events.ts'
 import { WorkspaceStore } from './workspace-store.ts'
 
 interface WorkspaceRuntime {
@@ -28,6 +30,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   let codex: CodexProvider | undefined
   const ollamaProviders = new Map<string, OllamaProvider>()
   const selectedFolders = new Set<string>()
+  const folderIndex = new FolderIndex(join(__dirname, 'project-folder-worker.cjs'))
   const directory = app.getPath('userData')
   const codexProfile = join(directory, 'codex-profile')
   const codexWorkspace = join(directory, 'codex-workspace')
@@ -48,19 +51,21 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   const resolveProvider = (settings: ProviderSettings): ModelProvider =>
     settings.defaultProvider === 'codex' ? getCodex() : getOllama(settings.ollamaUrl)
 
-  const emit = (event: ChatEvent): void => {
+  const delivery = batchChatEvents((event: ChatEvent): void => {
     for (const window of BrowserWindow.getAllWindows()) {
       const contents = window.webContents
       if (!contents.isDestroyed() && isTrustedRendererUrl(contents.getURL(), rendererUrl)) {
         contents.send('mwide:chat', event)
       }
     }
-  }
+  })
 
   try {
     await mkdir(directory, { recursive: true })
     const store = await WorkspaceStore.open(join(directory, 'workspace.json'))
-    service = new WorkspaceService(store, resolveProvider, emit, readProjectFolder)
+    service = new WorkspaceService(store, resolveProvider, delivery.emit, (path, signal, bytes) =>
+      folderIndex.read(path, signal, bytes),
+    )
   } catch (error) {
     startupError = new Error(
       `The saved workspace could not be opened. Your files were preserved. ${error instanceof Error ? error.message : 'Check the application data folder and retry.'}`,
@@ -170,6 +175,8 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
     dispose(): void {
       ipcMain.removeHandler('mwide:request')
       service?.dispose()
+      delivery.dispose()
+      folderIndex.dispose()
       codex?.dispose()
       for (const provider of ollamaProviders.values()) provider.dispose()
       ollamaProviders.clear()

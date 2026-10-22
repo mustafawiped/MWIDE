@@ -10,6 +10,21 @@ import type { ModelMessage } from './model'
 
 export const SUMMARY_LIMIT = 1600
 
+/** Conservative UTF-8 envelope size, including provider message framing headroom. */
+export function contextInputBytes(context: {
+  instructions: string
+  messages: ModelMessage[]
+}): number {
+  return (
+    Buffer.byteLength(
+      JSON.stringify([{ role: 'system', content: context.instructions }, ...context.messages]),
+      'utf8',
+    ) +
+    context.messages.length * 64 +
+    512
+  )
+}
+
 export function projectContext(project: ProjectDraft, catalog: CatalogItem[] = []): string {
   const selected = catalog.filter((entry) => project.catalogIds.includes(entry.id))
   return [

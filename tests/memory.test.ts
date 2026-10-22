@@ -9,6 +9,7 @@ import type {
 } from '../src/shared/contracts.ts'
 import {
   buildContext,
+  contextInputBytes,
   parseRecommendations,
   parseSummary,
   summaryBoundary,
@@ -119,6 +120,19 @@ test('every context preserves complete long Unicode canonical fields and selecte
   assert.deepEqual(state, snapshot, 'context construction must not modify persisted input')
 })
 
+test('input budgets count UTF-8 bytes and escaped JSON framing rather than character length', () => {
+  const context = {
+    instructions: 'Canonical 中文 🧭 "quoted" \\path\nnext',
+    messages: [{ role: 'user' as const, content: 'İstanbul 🧭\n"continue"' }],
+  }
+  const envelope = JSON.stringify([
+    { role: 'system', content: context.instructions },
+    ...context.messages,
+  ])
+  assert.ok(Buffer.byteLength(envelope, 'utf8') > envelope.length)
+  assert.equal(contextInputBytes(context), Buffer.byteLength(envelope, 'utf8') + 64 + 512)
+})
+
 test('context includes every same-project summary and stale tail without leaking another project', () => {
   const main = project()
   const current = conversation({ summary: 'CURRENT_COMPACT_SUMMARY', summaryThrough: 2 })
@@ -203,8 +217,8 @@ test('automatic summary boundaries retain the last two complete pairs', () => {
   assert.equal(summaryBoundary(conversation({ messages: messages('FOUR', 4) }), 4), 4)
 })
 
-test('manual summary boundaries include complete pairs and exclude a trailing unpaired message', () => {
-  const current = conversation({ messages: messages('MANUAL', 3) })
+test('full compaction boundaries include complete pairs and exclude a trailing unpaired message', () => {
+  const current = conversation({ messages: messages('FULL_COMPACTION', 3) })
   assert.equal(summaryBoundary(current, 0), 6)
   current.messages.push({
     id: 'unpaired-user',

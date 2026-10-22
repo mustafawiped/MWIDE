@@ -1,12 +1,48 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX, ReactNode } from 'react'
-import type { Conversation, Project } from '../../shared/contracts'
+import type { ChatMessage, Project } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
 import { ChatModelControl } from './ChatModelControl'
 import { CodexUsage } from './CodexUsage'
 import { MessageContent } from './MessageContent'
+import { CHAT_PAGE_SIZE, chatWindow, preserveChatAnchor } from './chat-window'
 import { Icon, Textarea } from './ui'
 import symbolBlack from './assets/mwide-symbol-black.svg'
+import './chat-performance.css'
+
+// State snapshots recreate message objects. Scalar props keep saved Markdown rows stable.
+const SavedMessage = memo(function SavedMessage({
+  id,
+  role,
+  content,
+  status,
+  createdAt,
+}: ChatMessage): JSX.Element {
+  return (
+    <article className={`message ${role}`} data-message-id={id}>
+      <div className="message-avatar" aria-hidden="true">
+        {role === 'user' ? 'Y' : <img src={symbolBlack} alt="" />}
+      </div>
+      <div className="message-body">
+        <div className="message-meta">
+          <strong>{role === 'user' ? 'You' : 'MWIDE'}</strong>
+          <span>
+            {new Date(createdAt).toLocaleTimeString('en', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+          {status !== 'complete' && <span className="badge">{status}</span>}
+        </div>
+        {role === 'assistant' ? (
+          <MessageContent content={content} />
+        ) : (
+          <div className="message-content">{content}</div>
+        )}
+      </div>
+    </article>
+  )
+})
 
 export function ChatWorkspace({
   project,
@@ -44,6 +80,15 @@ export function ChatWorkspace({
   const streamContainer = useRef<HTMLDivElement>(null)
   const followLatest = useRef(true)
   const displayedConversation = useRef<string | undefined>(undefined)
+  const [historyWindow, setHistoryWindow] = useState<{
+    conversationId?: string
+    count: number
+  }>({ conversationId: active?.id, count: CHAT_PAGE_SIZE })
+  const pendingAnchor = useRef<{
+    conversationId: string
+    top: number
+    height: number
+  } | null>(null)
   const composer = useRef<HTMLFormElement>(null)
   const settings = workspace.state?.settings
   const model = settings?.defaultProvider === 'ollama' ? settings.ollamaModel : settings?.codexModel
@@ -52,15 +97,42 @@ export function ChatWorkspace({
   )
   const mcpCount = selectedCatalog.filter((entry) => entry.kind === 'mcp').length
   const skillCount = selectedCatalog.filter((entry) => entry.kind === 'skill').length
-  useEffect(() => {
+  if (historyWindow.conversationId !== active?.id)
+    setHistoryWindow({ conversationId: active?.id, count: CHAT_PAGE_SIZE })
+  const visible = chatWindow(
+    active?.messages.length ?? 0,
+    historyWindow.conversationId === active?.id ? historyWindow.count : CHAT_PAGE_SIZE,
+  )
+  useLayoutEffect(() => {
     const container = streamContainer.current
     if (!container) return
     if (displayedConversation.current !== active?.id) {
       displayedConversation.current = active?.id
       followLatest.current = true
+      pendingAnchor.current = null
+    }
+    const anchor = pendingAnchor.current
+    if (anchor && anchor.conversationId === active?.id) {
+      container.scrollTop = preserveChatAnchor(anchor, container.scrollHeight)
+      pendingAnchor.current = null
+      return
     }
     if (followLatest.current) container.scrollTop = container.scrollHeight
-  }, [active?.id, active?.messages.length, workspace.stream])
+  }, [active?.id, active?.messages.length, visible.start, workspace.stream, streaming])
+  const loadEarlier = () => {
+    const container = streamContainer.current
+    if (!active || !container) return
+    followLatest.current = false
+    pendingAnchor.current = {
+      conversationId: active.id,
+      top: container.scrollTop,
+      height: container.scrollHeight,
+    }
+    setHistoryWindow({
+      conversationId: active.id,
+      count: visible.end - visible.start + CHAT_PAGE_SIZE,
+    })
+  }
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!draft.trim() || controlsDisabled || submittingRef.current) return
@@ -95,36 +167,21 @@ export function ChatWorkspace({
       requestAnimationFrame(() => composer.current?.querySelector('textarea')?.focus())
     }
   }
-  const renderMessages = (conversation: Conversation) => (
+  const renderMessages = () => (
     <>
-      {conversation.messages
+      {visible.earlier > 0 && (
+        <button className="button ghost load-earlier" type="button" onClick={loadEarlier}>
+          Load earlier messages ({visible.earlier})
+        </button>
+      )}
+      {active?.messages
+        .slice(visible.start, visible.end)
         .filter((message) => !(streaming && message.id === workspace.activeReplyId))
         .map((message) => (
-          <article className={`message ${message.role}`} key={message.id}>
-            <div className="message-avatar" aria-hidden="true">
-              {message.role === 'user' ? 'Y' : <img src={symbolBlack} alt="" />}
-            </div>
-            <div className="message-body">
-              <div className="message-meta">
-                <strong>{message.role === 'user' ? 'You' : 'MWIDE'}</strong>
-                <span>
-                  {new Date(message.createdAt).toLocaleTimeString('en', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-                {message.status !== 'complete' && <span className="badge">{message.status}</span>}
-              </div>
-              {message.role === 'assistant' ? (
-                <MessageContent content={message.content} />
-              ) : (
-                <div className="message-content">{message.content}</div>
-              )}
-            </div>
-          </article>
+          <SavedMessage key={message.id} {...message} />
         ))}
       {streaming && (
-        <article className="message assistant">
+        <article className="message assistant streaming">
           <div className="message-avatar" aria-hidden="true">
             <img src={symbolBlack} alt="" />
           </div>
@@ -194,7 +251,7 @@ export function ChatWorkspace({
                 </p>
               </div>
             ) : (
-              renderMessages(active)
+              renderMessages()
             )}
           </div>
           <form

@@ -1,0 +1,10 @@
+.chat-stream {
+  /* Preserve the explicit history anchor when older rows are prepended. */
+  overflow-anchor: none;
+}
+
+.load-earlier {
+  display: block;
+  margin: 0 auto 16px;
+  flex: none;
+}

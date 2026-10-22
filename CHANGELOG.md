@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Reduced long-chat rendering with memoized messages, earlier-history paging, and lossless stream batching.
+- Removed unnecessary AI summary calls on short chat handoffs; compact larger archives when the actual model budget requires it.
+- Moved project-folder scanning to a reusable, cancellable background worker.
+- Added repeatable context and desktop performance experiments against `v1.1.0`, including late-reply, cancellation, draft, and scroll-position checks.
+
 ## 1.1.0 — 2026-10-22
 
 - Added a chat-first monochrome interface with project selection, conversation history, and collapsible workspace navigation.

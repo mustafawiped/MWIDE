@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WorkspaceBridge, WorkspaceState } from '../../shared/contracts'
+import { acceptsStreamDelta, createStreamBuffer, type StreamResponse } from './stream-buffer'
 
 const unavailable =
   'The workspace service is not available in this preview. Your changes have not been saved.'
@@ -25,7 +26,19 @@ export function useWorkspace() {
   const discardDecision = useRef<((discard: boolean) => void) | null>(null)
   const mounted = useRef(true)
   const taskPending = useRef(false)
-  const activeSend = useRef<{ conversationId: string; cancelled: boolean } | null>(null)
+  const activeSend = useRef<StreamResponse | null>(null)
+  const [streamBuffer] = useState(() =>
+    createStreamBuffer<StreamResponse>(setStream, {
+      frame(callback) {
+        const handle = requestAnimationFrame(callback)
+        return () => cancelAnimationFrame(handle)
+      },
+      delay(callback, milliseconds) {
+        const handle = window.setTimeout(callback, milliseconds)
+        return () => window.clearTimeout(handle)
+      },
+    }),
+  )
   const hasUnsavedChanges = Object.values(dirtyForms).some(Boolean)
   const generatingId = generation?.conversationId ?? null
   const activeReply = generation
@@ -55,8 +68,9 @@ export function useWorkspace() {
         unsubscribe = bridge.onChatEvent((event) => {
           if (disposed) return
           if (event.type === 'state') setState(event.state)
-          if (event.type === 'delta' && activeSend.current?.conversationId === event.conversationId)
-            setStream((previous) => previous + event.text)
+          const request = activeSend.current
+          if (event.type === 'delta' && request && acceptsStreamDelta(request, event))
+            streamBuffer.append(request, event.text)
           if (event.type === 'error' && !activeSend.current?.cancelled) setError(event.message)
         })
         void bridge
@@ -85,8 +99,9 @@ export function useWorkspace() {
       discardDecision.current?.(false)
       discardDecision.current = null
       unsubscribe?.()
+      streamBuffer.discard()
     }
-  }, [bridge])
+  }, [bridge, streamBuffer])
 
   const execute = useCallback(
     async <T>(task: (service: WorkspaceBridge) => Promise<T>): Promise<T | undefined> => {
@@ -130,15 +145,17 @@ export function useWorkspace() {
         setError(unavailable)
         return false
       }
-      const request = { conversationId, cancelled: false }
+      const knownMessageIds = new Set(
+        state?.conversations
+          .find((conversation) => conversation.id === conversationId)
+          ?.messages.map((item) => item.id),
+      )
+      const request = { conversationId, cancelled: false, knownMessageIds }
       activeSend.current = request
+      streamBuffer.begin(request)
       setGeneration({
         conversationId,
-        knownMessageIds: new Set(
-          state?.conversations
-            .find((conversation) => conversation.id === conversationId)
-            ?.messages.map((item) => item.id),
-        ),
+        knownMessageIds,
       })
       setStream('')
       setError('')
@@ -150,6 +167,7 @@ export function useWorkspace() {
         if (mounted.current && !request.cancelled) setError(message(failure))
         return false
       } finally {
+        streamBuffer.finish(request)
         if (activeSend.current === request) activeSend.current = null
         if (mounted.current) {
           setGeneration(null)
@@ -158,13 +176,14 @@ export function useWorkspace() {
         }
       }
     },
-    [bridge, state],
+    [bridge, state, streamBuffer],
   )
 
   const stop = useCallback(async () => {
     const request = activeSend.current
     if (!bridge || !request || request.cancelled) return
     request.cancelled = true
+    streamBuffer.flush(request)
     setCancelling(true)
     try {
       await bridge.cancelMessage(request.conversationId)
@@ -175,7 +194,7 @@ export function useWorkspace() {
         setCancelling(false)
       }
     }
-  }, [bridge])
+  }, [bridge, streamBuffer])
 
   const cancelOperation = async () => {
     if (!bridge || !taskPending.current || operationCancelling) return

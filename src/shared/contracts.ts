@@ -95,7 +95,7 @@ export interface Recommendation {
 }
 
 export type ChatEvent =
-  | { type: 'delta'; conversationId: string; text: string }
+  | { type: 'delta'; conversationId: string; text: string; replyId?: string }
   | { type: 'state'; state: WorkspaceState }
   | { type: 'error'; conversationId: string; message: string }
 

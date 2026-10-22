@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, memo, useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 
 function inline(text: string): ReactNode[] {
@@ -44,7 +44,11 @@ function CodeBlock({ language, content }: { language: string; content: string })
 }
 
 /** Render readable text and code without interpreting model output as HTML. */
-export function MessageContent({ content }: { content: string }): JSX.Element {
+export const MessageContent = memo(function MessageContent({
+  content,
+}: {
+  content: string
+}): JSX.Element {
   const lines = content.replace(/\r\n/g, '\n').split('\n')
   const blocks: ReactNode[] = []
   let index = 0
@@ -120,4 +124,4 @@ export function MessageContent({ content }: { content: string }): JSX.Element {
     )
   }
   return <div className="message-content">{blocks}</div>
-}
+})

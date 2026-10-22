@@ -6,7 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig([
-  globalIgnores(['out/**', 'dist/**', 'release/**', 'coverage/**', '.tools/**']),
+  globalIgnores(['out/**', 'dist/**', 'release/**', 'coverage/**', '.tools/**', '.mwide/**']),
   {
     files: ['**/*.{js,ts,tsx}'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
