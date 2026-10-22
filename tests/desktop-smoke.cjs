@@ -42,7 +42,10 @@ const server = http.createServer(async (request, response) => {
     } else if (request.url === '/api/chat') {
       requests.push(payload)
       const instructions = payload.messages[0].content
-      let text = 'The project context is available.'
+      let text =
+        payload.messages.at(-1).content === 'Show a small TypeScript example.'
+          ? '# Example\n**Typed output**\n```ts\nconst ready: boolean = true\n```\n<script>window.modelOutputRan = true</script>'
+          : 'The project context is available.'
       if (instructions.includes('Recommend only useful entries')) {
         const catalog = JSON.parse(instructions.slice(instructions.lastIndexOf('\n') + 1))
         text = JSON.stringify([{ id: catalog[0].id, reason: 'Useful for testing this project.' }])
@@ -113,7 +116,15 @@ async function run() {
     }
     throw new Error(`Timed out: ${label}`)
   }
+  const ensureSidebar = async () => {
+    if (!(await evaluate('Boolean(document.querySelector(".sidebar"))'))) {
+      await evaluate('document.querySelector(".sidebar-toggle").click()')
+      await until(() => evaluate('Boolean(document.querySelector(".sidebar"))'), 'sidebar opens')
+    }
+  }
   const click = async (label, selector = 'button') => {
+    if (['.nav-item', '.conversation-item', '.sidebar-project'].includes(selector))
+      await ensureSidebar()
     await until(
       () =>
         evaluate(
@@ -138,16 +149,25 @@ async function run() {
     ? dirname(resolve(process.env.MWIDE_SCREENSHOT))
     : resolve('.mwide/test-results')
   await mkdir(screenshotDirectory, { recursive: true })
-  window.setMinimumSize(360, 500)
+  window.setMinimumSize(360, 420)
   const inspectLayout = async (screen) => {
     const [originalWidth, originalHeight] = window.getContentSize()
-    for (const width of [1280, 980, 600]) {
-      window.setContentSize(width, 800)
+    for (const [width, height] of [
+      [1280, 800],
+      [980, 600],
+      [640, 480],
+      [600, 600],
+    ]) {
+      window.setContentSize(width, height)
       await until(() => evaluate(`window.innerWidth === ${width}`), `${screen} viewport ${width}`)
       await settleLayout()
       const layout = await evaluate(`(() => ({
         viewport: window.innerWidth,
         page: document.documentElement.scrollWidth,
+        pageHeight: document.documentElement.scrollHeight,
+        viewportHeight: window.innerHeight,
+        escapedControls: [...document.querySelectorAll('.main-panel input, .main-panel textarea, .main-panel select, .main-panel button')].filter(element => { const bounds = element.getBoundingClientRect(); return bounds.width > 0 && bounds.height > 0 && !element.closest('.chat-stream') && (bounds.top < -1 || bounds.bottom > window.innerHeight + 1); }).map(element => element.getAttribute('aria-label') || element.name || element.textContent.trim()),
+        unexpectedScrollers: [...document.querySelectorAll('body, #root, .app-shell, .main-panel, .page-content, .project-workspace, .chat-main, .provider-panel, .editor-section, .catalog-editor')].filter(element => { const style = getComputedStyle(element); return /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1; }).map(element => element.className || element.tagName),
         controlsOutsideViewport: [...document.querySelectorAll('input:not([type="hidden"]), textarea, select, button')]
           .filter(element => {
             const bounds = element.getBoundingClientRect();
@@ -170,10 +190,20 @@ async function run() {
         [],
         `${screen} has unreachable horizontal controls at ${width}px`,
       )
-      if (width >= 980 && layout.chatGeometry.length) {
+      assert.ok(
+        layout.pageHeight <= layout.viewportHeight + 1,
+        screen + ' document scrolls vertically at ' + width + 'x' + height,
+      )
+      assert.deepEqual(
+        layout.escapedControls,
+        [],
+        screen + ' controls clipped vertically at ' + width + 'x' + height,
+      )
+      assert.deepEqual(layout.unexpectedScrollers, [], screen + ' unexpected page scrolling')
+      if (layout.chatGeometry.length) {
         const composerBounds = layout.chatGeometry.find((element) => element.class === 'composer')
         assert.ok(
-          composerBounds.bottom <= 801,
+          composerBounds.bottom <= height + 1,
           `Chat composer must stay visible: ${JSON.stringify(layout.chatGeometry)}`,
         )
       }
@@ -248,16 +278,17 @@ async function run() {
   }
   await evaluate(`window.mwide.workspace.saveSettings(${JSON.stringify(settings)})`)
   await click('ProvidersModels & connections', '.nav-item')
-  await click('Check connection', '.provider-card:last-child button')
+  await click('Ollama', '[role=tab]')
+  await click('Check connection', '.provider-panel button')
   await until(
     () =>
       evaluate(
-        'document.querySelector(".provider-card:last-child .connection-detail").classList.contains("connected-text")',
+        'document.querySelector(".provider-panel .connection-detail").classList.contains("connected-text")',
       ),
     'Ollama connection discovery',
   )
   assert.equal(
-    await evaluate('document.querySelector(".provider-card:last-child select").value'),
+    await evaluate('document.querySelector(".provider-panel select").value'),
     'fixture:local',
   )
   await inspectLayout('providers')
@@ -276,6 +307,7 @@ async function run() {
   await fill('select', 'skill')
   await fill('input[name="name"]', 'Focused tests')
   await fill('textarea[name="description"]', 'Testing project behavior')
+  await click('Instructions', '[role=tab]')
   await fill('textarea[name="instructions"]', 'Verify outcomes before committing.')
   await inspectLayout('catalog-entry')
   await click('Save entry')
@@ -289,6 +321,7 @@ async function run() {
       evaluate("document.querySelector('[name=name]')?.getAttribute('aria-invalid') === 'true'"),
     'required field validation',
   )
+  await inspectLayout('project-validation')
   await fill('input[name="name"]', project.name)
   await click('ProvidersModels & connections', '.nav-item')
   await until(
@@ -299,9 +332,12 @@ async function run() {
   await click('Keep editing')
   assert.equal(await evaluate('document.querySelector("[name=name]").value'), project.name)
   await fill('textarea[name="description"]', project.description)
+  await click('Rules', '[role=tab]')
   await fill('textarea[name="rules"]', project.rules)
+  await click('Architecture', '[role=tab]')
   await fill('textarea[name="architecture"]', project.architecture)
   await inspectLayout('create-project')
+  await click('MCPs & Skills', '[role=tab]')
   await click('Recommend MCPs & Skills')
   await click('Apply recommendations')
   await click('Create project')
@@ -318,6 +354,10 @@ async function run() {
   await fill('#chat-message', 'Do not submit during IME composition')
   await evaluate(
     'document.querySelector("#chat-message").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, isComposing: true, bubbles: true }))',
+  )
+  assert.equal((await state()).conversations[0].messages.length, 0)
+  await evaluate(
+    'document.querySelector("#chat-message").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }))',
   )
   assert.equal((await state()).conversations[0].messages.length, 0)
   serviceAvailable = false
@@ -435,7 +475,10 @@ async function run() {
   const beforeReload = await state()
   await window.webContents.reload()
   await until(
-    () => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(project.name)}`),
+    () =>
+      evaluate(
+        `document.querySelector('.chat-project-name')?.textContent === ${JSON.stringify(project.name)}`,
+      ),
     'workspace reload',
   )
   assert.deepEqual(await state(), beforeReload)
@@ -444,7 +487,7 @@ async function run() {
   assert.equal(BrowserWindow.getAllWindows().length, 1)
   assert.equal(await evaluate('document.querySelector(".workspace-menu").open'), false)
   assert.equal(
-    await evaluate('document.querySelector(".chat-header h2").textContent'),
+    await evaluate('document.querySelector(".chat-conversation-title").textContent'),
     beforeReload.conversations.at(-1).title,
   )
   await inspectLayout('chat-focused')
@@ -457,17 +500,88 @@ async function run() {
   await fill('textarea[name="description"]', 'Keep this project separate from the first one.')
   await click('Create project')
   await until(
-    () => evaluate('document.querySelector("h1")?.textContent === "Another project"'),
+    () =>
+      evaluate('document.querySelector(".chat-project-name")?.textContent === "Another project"'),
     'second project opens in chat',
   )
   assert.equal(await evaluate('document.querySelectorAll(".conversation-item").length'), 0)
-  await click('New conversation')
+  await fill('#chat-message', 'Show a small TypeScript example.')
+  await evaluate(
+    'document.querySelector("#chat-message").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))',
+  )
+  await until(
+    async () =>
+      (await state()).conversations.find((item) => item.projectId !== saved.id)?.messages.at(-1)
+        ?.status === 'complete',
+    'direct first prompt creates and streams a conversation',
+  )
   await until(
     () => evaluate('!document.querySelector("#chat-message").disabled'),
-    'second project conversation',
+    'first prompt finished',
   )
+  assert.equal(
+    await evaluate('document.querySelector(".message-code code")?.textContent'),
+    'const ready: boolean = true',
+  )
+  assert.equal(await evaluate('Boolean(window.modelOutputRan)'), false)
+  await click('Check AI')
+  await until(
+    () => evaluate('document.querySelector(".chat-model-status")?.textContent === "Connected"'),
+    'inline AI connection',
+  )
+  await fill('[aria-label="AI provider"]', 'codex')
+  await until(
+    () => evaluate('Boolean(document.querySelector(".composer-notice"))'),
+    'missing AI model guidance',
+  )
+  await fill('[aria-label="AI provider"]', 'ollama')
+  await until(
+    () => evaluate(`document.querySelector('[aria-label="AI model"]').value === 'fixture:local'`),
+    'inline provider selection retained model',
+  )
+  await inspectLayout('direct-ai-chat')
+  const mainWidthWithSidebar = await evaluate('document.querySelector(".main-panel").clientWidth')
+  await evaluate('document.querySelector(".sidebar-toggle").click()')
+  assert.equal(await evaluate('Boolean(document.querySelector(".sidebar"))'), false)
+  assert.ok(
+    await evaluate(`document.querySelector('.main-panel').clientWidth > ${mainWidthWithSidebar}`),
+  )
+  await evaluate('document.querySelector(".sidebar-toggle").click()')
+  const [drawerTestWidth, drawerTestHeight] = window.getContentSize()
+  window.setContentSize(600, 600)
+  await until(
+    () => evaluate('window.innerWidth === 600 && !document.querySelector(".sidebar")'),
+    'narrow viewport collapses sidebar',
+  )
+  await evaluate('document.querySelector(".sidebar-toggle").click()')
+  await until(
+    () => evaluate('Boolean(document.querySelector(".sidebar-drawer[open]"))'),
+    'native sidebar drawer opens',
+  )
+  assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Close sidebar')
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+  assert.ok(
+    await evaluate('document.querySelector(".sidebar-drawer").contains(document.activeElement)'),
+  )
+  await writeFile(
+    join(screenshotDirectory, 'sidebar-drawer-600.png'),
+    (await window.webContents.capturePage()).toPNG(),
+  )
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+  await until(
+    () => evaluate('!document.querySelector(".sidebar-drawer")'),
+    'Escape closes sidebar drawer',
+  )
+  assert.equal(await evaluate('document.activeElement.classList.contains("sidebar-toggle")'), true)
+  window.setContentSize(drawerTestWidth, drawerTestHeight)
+  await settleLayout()
   await click(project.name, '.sidebar-project')
-  assert.equal(await evaluate('document.querySelector(".chat-header h2").textContent'), firstTitle)
+  assert.equal(
+    await evaluate('document.querySelector(".chat-conversation-title").textContent'),
+    firstTitle,
+  )
   assert.equal(
     await evaluate('document.querySelector("#chat-message").value'),
     'Draft retained across projects',
@@ -476,7 +590,7 @@ async function run() {
   await evaluate('document.querySelector(".workspace-menu > summary").click()')
   await inspectLayout('workspace-menu')
   console.log(
-    `Desktop smoke passed: real preload/IPC, forms, catalog, recommendations, streams, cancellation, cross-chat context, reload, durable storage, monochrome theme, brand image, keyboard focus, native select, reduced motion and 1280/980/600px layouts. Screenshots: ${screenshotDirectory}`,
+    `Desktop smoke passed: real preload/IPC, forms, catalog, recommendations, streams, cancellation, cross-chat context, reload, durable storage, monochrome theme, brand image, keyboard focus, native select, reduced motion and dynamic 1280x800/980x600/640x480/600x600 layouts without document scroll. Screenshots: ${screenshotDirectory}`,
   )
 }
 

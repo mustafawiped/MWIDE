@@ -10,6 +10,7 @@ import { ChatWorkspace } from './ChatWorkspace'
 import workspaceSymbol from './assets/mwide-symbol-black.svg'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 import type { WorkspacePage } from './WorkspaceSidebar'
+import { SidebarDrawer } from './SidebarDrawer'
 const emptyProject: ProjectDraft = {
   name: '',
   description: '',
@@ -21,6 +22,30 @@ const emptyProject: ProjectDraft = {
 export default function App(): JSX.Element {
   const workspace = useWorkspace()
   const [page, setPage] = useState<WorkspacePage>('workspace')
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 760px)').matches)
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => !window.matchMedia('(max-width: 760px)').matches,
+  )
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }))
+  const [projectPage, setProjectPage] = useState(0)
+  useEffect(() => {
+    const resize = () => {
+      const narrow = window.innerWidth <= 760
+      setViewport({ width: window.innerWidth, height: window.innerHeight })
+      setCompact(narrow)
+    }
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)')
+    const change = (event: MediaQueryListEvent) => setSidebarOpen(!event.matches)
+    media.addEventListener('change', change)
+    return () => media.removeEventListener('change', change)
+  }, [])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [projectForm, setProjectForm] = useState<'new' | 'edit' | null>(null)
   const projects = workspace.state?.projects ?? []
@@ -34,6 +59,22 @@ export default function App(): JSX.Element {
     conversations.find((item) => item.id === selectedConversations[selectedProject?.id ?? '']) ??
     conversations.at(-1)
   const locked = Boolean(workspace.generatingId) || workspace.pending
+  const chatVisible =
+    Boolean(selectedProject) && page === 'workspace' && !projectForm && !workspace.loading
+  const projectColumns = Math.max(
+    1,
+    Math.floor((viewport.width - (!compact && sidebarOpen ? 236 : 0) - 48) / 300),
+  )
+  const projectsPerPage = Math.min(
+    12,
+    Math.max(1, Math.floor((viewport.height - 190) / 160)) * projectColumns,
+  )
+  const projectPages = Math.max(1, Math.ceil(projects.length / projectsPerPage))
+  const visibleProjectPage = Math.min(projectPage, projectPages - 1)
+  const visibleProjects = projects.slice(
+    visibleProjectPage * projectsPerPage,
+    (visibleProjectPage + 1) * projectsPerPage,
+  )
   const settings = workspace.state?.settings
   const model = settings?.defaultProvider === 'ollama' ? settings.ollamaModel : settings?.codexModel
   useEffect(() => {
@@ -55,6 +96,7 @@ export default function App(): JSX.Element {
     if (page === next && !projectForm) return
     if (!(await workspace.confirmDiscard())) return
     setPage(next)
+    if (compact) setSidebarOpen(false)
     setProjectForm(null)
     workspace.clearError()
   }
@@ -81,6 +123,7 @@ export default function App(): JSX.Element {
     setPage('workspace')
     setProjectForm(null)
     setSelectedProjectId(id)
+    if (compact) setSidebarOpen(false)
     workspace.clearError()
   }
   const createProject = async () => {
@@ -88,16 +131,18 @@ export default function App(): JSX.Element {
     setPage('workspace')
     setSelectedProjectId(null)
     setProjectForm('new')
+    if (compact) setSidebarOpen(false)
     workspace.clearError()
   }
   const selectConversation = async (id: string) => {
     if (!selectedProject || !(await workspace.confirmDiscard())) return
     setSelectedConversations((previous) => ({ ...previous, [selectedProject.id]: id }))
+    if (compact) setSidebarOpen(false)
     setProjectForm(null)
     setPage('workspace')
     workspace.clearError()
   }
-  const newConversation = async () => {
+  const newConversation = async (): Promise<string | undefined> => {
     if (!selectedProject || !(await workspace.confirmDiscard())) return
     setProjectForm(null)
     setPage('workspace')
@@ -109,48 +154,70 @@ export default function App(): JSX.Element {
     )
     if (created) {
       setSelectedConversations((previous) => ({ ...previous, [selectedProject.id]: created.id }))
+      if (compact) setSidebarOpen(false)
+      return created.id
     }
   }
+  const sidebar = (
+    <WorkspaceSidebar
+      page={page}
+      projects={projects}
+      project={selectedProject}
+      conversations={conversations}
+      activeConversationId={activeConversation?.id}
+      locked={locked}
+      creatingProject={projectForm === 'new'}
+      provider={
+        settings
+          ? settings.defaultProvider === 'ollama'
+            ? 'Ollama'
+            : 'ChatGPT / Codex'
+          : 'Not configured'
+      }
+      model={model}
+      onNavigate={(next) => void navigate(next)}
+      onProject={(id) => void openProject(id)}
+      onConversation={(id) => void selectConversation(id)}
+      onNewProject={() => void createProject()}
+      onNewConversation={() => void newConversation()}
+    />
+  )
+  const sidebarToggle = (
+    <button
+      className="icon-button sidebar-toggle"
+      aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+      title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+      aria-expanded={sidebarOpen}
+      onClick={() => setSidebarOpen((previous) => !previous)}
+    >
+      <Icon name="sidebar" size={19} />
+    </button>
+  )
   return (
     <>
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <div className="app-shell">
-        <WorkspaceSidebar
-          page={page}
-          projects={projects}
-          project={selectedProject}
-          conversations={conversations}
-          activeConversationId={activeConversation?.id}
-          locked={locked}
-          creatingProject={projectForm === 'new'}
-          provider={
-            settings
-              ? settings.defaultProvider === 'ollama'
-                ? 'Ollama'
-                : 'ChatGPT / Codex'
-              : 'Not configured'
-          }
-          model={model}
-          onNavigate={(next) => void navigate(next)}
-          onProject={(id) => void openProject(id)}
-          onConversation={(id) => void selectConversation(id)}
-          onNewProject={() => void createProject()}
-          onNewConversation={() => void newConversation()}
-        />
+      <div
+        className={`app-shell ${sidebarOpen && !compact ? 'sidebar-is-open' : 'sidebar-is-hidden'}`}
+      >
+        {!compact && sidebarOpen && sidebar}
+
         <main id="main-content" className="main-panel" tabIndex={-1}>
-          <header className="app-topbar">
-            <div className="workspace-path">
-              <Icon name="terminal" size={16} />
-              <span>workspace</span>
-              <span className="path-separator">/</span>
-              <strong>{page === 'workspace' ? (selectedProject?.name ?? 'home') : page}</strong>
-            </div>
-            <span className="workspace-mode">
-              MWIDE <span aria-hidden="true">·</span> Desktop workspace
-            </span>
-          </header>
+          {!chatVisible && (
+            <header className="app-topbar">
+              {sidebarToggle}
+              <div className="workspace-path">
+                <Icon name="terminal" size={16} />
+                <span>workspace</span>
+                <span className="path-separator">/</span>
+                <strong>{page === 'workspace' ? (selectedProject?.name ?? 'home') : page}</strong>
+              </div>
+              <span className="workspace-mode">
+                MWIDE <span aria-hidden="true">·</span> Desktop workspace
+              </span>
+            </header>
+          )}
           {!workspace.available && (
             <div className="preview-banner" role="status">
               <span className="badge">Preview</span>
@@ -219,7 +286,9 @@ export default function App(): JSX.Element {
               workspace={workspace}
               onEdit={() => setProjectForm('edit')}
               conversationId={activeConversation?.id}
-              onNewConversation={() => void newConversation()}
+              onNewConversation={newConversation}
+              onConfigureProvider={() => void navigate('providers')}
+              headerStart={sidebarToggle}
             />
           ) : (
             <div className="page-content projects-page">
@@ -303,7 +372,7 @@ export default function App(): JSX.Element {
                     </span>
                   </div>
                   <div className="card-grid">
-                    {projects.map((project) => (
+                    {visibleProjects.map((project) => (
                       <button
                         className="project-card"
                         key={project.id}
@@ -325,6 +394,27 @@ export default function App(): JSX.Element {
                       </button>
                     ))}
                   </div>
+                  {projectPages > 1 && (
+                    <nav className="compact-pagination" aria-label="Project pages">
+                      <button
+                        className="button ghost"
+                        disabled={visibleProjectPage === 0}
+                        onClick={() => setProjectPage(visibleProjectPage - 1)}
+                      >
+                        Previous
+                      </button>
+                      <span>
+                        {visibleProjectPage + 1} / {projectPages}
+                      </span>
+                      <button
+                        className="button ghost"
+                        disabled={visibleProjectPage >= projectPages - 1}
+                        onClick={() => setProjectPage(visibleProjectPage + 1)}
+                      >
+                        Next
+                      </button>
+                    </nav>
+                  )}
                 </>
               )}
             </div>
@@ -340,6 +430,9 @@ export default function App(): JSX.Element {
           </footer>
         </main>
       </div>
+      {compact && sidebarOpen && (
+        <SidebarDrawer onClose={() => setSidebarOpen(false)}>{sidebar}</SidebarDrawer>
+      )}
       {workspace.discardRequested && (
         <ConfirmDialog
           title="Discard unsaved changes?"

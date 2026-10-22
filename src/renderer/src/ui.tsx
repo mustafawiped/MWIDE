@@ -117,6 +117,7 @@ export type IconName =
   | 'close'
   | 'terminal'
   | 'chevronDown'
+  | 'sidebar'
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }): JSX.Element {
   const paths: Record<IconName, ReactNode> = {
     projects: <path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 6h18" />,
@@ -143,6 +144,12 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }): JS
       </>
     ),
     chevronDown: <path d="m6 9 6 6 6-6" />,
+    sidebar: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16" />
+      </>
+    ),
   }
   return (
     <svg

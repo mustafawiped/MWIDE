@@ -1,0 +1,932 @@
+/* Viewport geometry is owned here; styles.css owns the monochrome tokens. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.app-shell {
+  --sidebar-width: clamp(216px, 18vw, 252px);
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.sidebar-is-hidden {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.main-panel {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.sidebar {
+  grid-column: 1;
+  position: static;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 14px 12px 12px;
+}
+.sidebar > * {
+  flex-shrink: 0;
+}
+.sidebar .brand {
+  padding: 0 8px;
+  margin: 0 0 12px;
+}
+.brand-tagline {
+  margin-top: 2px;
+  font-size: 9px;
+}
+.workspace-menu {
+  margin-top: 4px;
+}
+.workspace-menu > summary,
+.project-switcher > summary {
+  padding: 9px 10px;
+}
+.project-switcher {
+  margin-top: 8px;
+}
+.project-switcher > summary > span {
+  gap: 3px;
+}
+.project-switcher-list {
+  max-height: none;
+  overflow: visible;
+}
+.sidebar-new-chat {
+  margin-top: 8px;
+  padding: 8px 10px;
+}
+.sidebar-history {
+  flex: 1 0 auto;
+  min-height: 0;
+  margin-top: 20px;
+}
+.sidebar-section-heading {
+  padding: 0 10px;
+}
+.sidebar-history .conversation-list {
+  overflow: visible;
+  max-height: none;
+  margin-top: 4px;
+}
+.sidebar-history .conversation-item {
+  padding: 9px 10px;
+}
+.sidebar-history .sidebar-empty {
+  font-size: 11px;
+  line-height: 1.65;
+}
+.sidebar-footer {
+  padding: 12px 0 0;
+}
+.sidebar-wordmark {
+  display: none !important;
+}
+.model-switcher {
+  padding: 8px;
+}
+.app-topbar {
+  min-height: 40px;
+  padding: 4px 14px;
+  gap: 12px;
+}
+.workspace-path {
+  flex: 1;
+  font-size: 10px;
+  gap: 8px;
+}
+.workspace-mode {
+  font-size: 10px;
+}
+.workspace-status {
+  display: none;
+}
+.sidebar-toggle {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.preview-banner,
+.operation-bar {
+  flex: none;
+  padding: 6px 14px;
+  font-size: 11px;
+}
+.global-error {
+  flex: none;
+  margin: 6px 12px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Chat owns all remaining height; only its message log scrolls. */
+.project-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  overflow: hidden;
+}
+.chat-topbar {
+  min-height: 48px;
+  height: auto;
+  flex: none;
+  padding: 6px 16px;
+  gap: 10px;
+}
+.chat-heading {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.chat-project-name,
+.chat-conversation-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chat-topbar .chat-project-name {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+}
+.chat-topbar h1.chat-conversation-title {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+.chat-topbar .context-edit {
+  margin-left: 0;
+  font-size: 11px;
+  padding: 5px 8px;
+  min-height: 30px;
+}
+.chat-topbar .memory-badge {
+  flex: none;
+  font-size: 10px;
+}
+.workspace-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+}
+.chat-stream {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px clamp(14px, 2.2vw, 36px);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.chat-empty-state {
+  max-width: 680px;
+  padding: 16px;
+  gap: 8px;
+}
+.chat-empty-mark {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 4px;
+}
+.chat-empty-state .chat-empty-kicker {
+  font-size: 9px;
+}
+.chat-stream .empty-state h2 {
+  font-size: 23px;
+}
+.chat-stream .empty-state p {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.chat-empty-actions {
+  margin-top: 10px;
+}
+.message {
+  padding: 12px 0;
+  gap: 10px;
+}
+.message-content {
+  font-size: 14px;
+  line-height: 1.65;
+  margin-top: 4px;
+}
+.message-paragraph {
+  margin: 0 0 10px;
+}
+.message-heading {
+  font-size: 15px;
+  margin: 12px 0 8px;
+}
+.message-list {
+  margin: 8px 0 12px;
+  padding-left: 22px;
+}
+.message-inline-code {
+  font-family: var(--font-utility);
+  font-size: 0.9em;
+  background: var(--selected);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.message-code {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: hidden;
+}
+.message-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  font-family: var(--font-utility);
+  font-size: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.message-copy {
+  font: inherit;
+  color: var(--secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+.message-copy:hover {
+  color: var(--primary);
+  background: var(--selected);
+}
+.message-code pre {
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.7 var(--font-utility);
+}
+.context-panel {
+  margin: 12px 0 0;
+}
+.context-panel summary {
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.context-summary p {
+  max-height: none;
+  overflow: visible;
+  font-size: 12px;
+}
+.composer {
+  margin: 6px clamp(14px, 2.2vw, 36px) 12px;
+  padding: 10px 12px;
+  flex: none;
+}
+.composer-input {
+  min-height: 44px;
+  max-height: min(24dvh, 160px);
+  overflow-y: auto;
+  line-height: 1.65;
+  font-size: 14px;
+  padding: 2px 0;
+}
+.composer-context {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 8px 0 0;
+}
+.composer-footer {
+  margin-top: 6px;
+  gap: 8px;
+}
+.composer-footer .button {
+  min-height: 31px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.composer-footer > span {
+  display: block;
+  font-size: 10px;
+}
+.chat-model-control {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chat-model-select {
+  min-width: 0;
+  max-width: 240px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--primary);
+  background: var(--main);
+  font: 11px/1.4 var(--font-body);
+}
+.chat-model-select.provider-select {
+  max-width: 140px;
+}
+.chat-provider-check,
+.chat-configure-button {
+  padding: 4px 6px;
+  min-height: 27px;
+  font-size: 10px;
+}
+.chat-model-status,
+.composer-notice {
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 4px 0;
+}
+.composer-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.composer-catalog {
+  font-size: 9px;
+}
+
+/* Management uses bounded sections rather than page or form scrollbars. */
+.page-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px clamp(14px, 2.2vw, 32px);
+  margin: 0;
+}
+.page-heading {
+  flex: none;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.page-heading h1 {
+  font-size: 24px;
+}
+.page-heading .eyebrow {
+  margin-bottom: 3px;
+  font-size: 9px;
+}
+.page-description {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.page-heading > .button {
+  margin-top: 0;
+}
+.management-tabs {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.management-tabs button {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: var(--secondary);
+  background: transparent;
+  font: 12px/1.4 var(--font-body);
+}
+.management-tabs button:hover {
+  color: var(--primary);
+  background: var(--hover);
+}
+.management-tabs button[aria-selected='true'] {
+  color: var(--primary);
+  background: var(--selected);
+  border-color: var(--border);
+}
+.compact-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.compact-editor .editor-grid {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  align-items: stretch;
+}
+.editor-section,
+.provider-panel {
+  min-height: 0;
+}
+.form-panel,
+.catalog-choice,
+.provider-card,
+.settings-default {
+  padding: 16px;
+}
+.section-heading {
+  margin-bottom: 12px;
+}
+.section-heading h2 {
+  font-size: 14px;
+}
+.section-heading p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.field {
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.field-label {
+  font-size: 12px;
+}
+.hint {
+  font-size: 10px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.input,
+.select,
+.textarea {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.textarea {
+  min-height: 64px;
+  max-height: clamp(80px, 24dvh, 220px);
+}
+.form-actions {
+  flex: none;
+  margin-top: 10px;
+  gap: 8px;
+}
+.form-actions .button {
+  padding: 6px 12px;
+  min-height: 32px;
+}
+.form-grid {
+  gap: 14px;
+}
+.provider-section {
+  min-height: 0;
+}
+.provider-panel {
+  max-width: 100%;
+}
+.provider-heading {
+  gap: 10px;
+}
+.provider-logo {
+  width: 30px;
+  height: 30px;
+  font-size: 17px;
+  border-radius: 8px;
+}
+.provider-heading h2 {
+  font-size: 14px;
+}
+.provider-description {
+  min-height: 0;
+  margin: 10px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.provider-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.connection-detail {
+  margin: 7px 0 10px;
+  min-height: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.provider-actions {
+  gap: 7px;
+}
+.provider-actions .button {
+  min-height: 31px;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+.provider-save-bar {
+  margin-top: auto;
+  padding-top: 10px;
+}
+.settings-default {
+  margin-top: 0;
+}
+.providers-page > .notice {
+  flex: none;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+.catalog-page .notice.subtle {
+  flex: none;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+.catalog-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+}
+.catalog-editor-fields {
+  flex: 1;
+  min-height: 0;
+}
+.catalog-editor-section {
+  min-height: 0;
+}
+.catalog-editor-actions {
+  flex: none;
+  margin-top: 6px;
+}
+.catalog-options {
+  margin-top: 8px;
+  gap: 6px;
+}
+.catalog-option {
+  padding: 8px 10px;
+  gap: 8px;
+}
+.catalog-option-title {
+  font-size: 12px;
+}
+.catalog-option-description,
+.recommendation {
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.catalog-choice-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.catalog-choice-actions .full-width {
+  width: auto;
+}
+.catalog-choice-actions .button {
+  font-size: 11px;
+  padding: 6px 10px;
+  min-height: 31px;
+}
+.compact-catalog-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+}
+.catalog-entry {
+  padding: 12px;
+  gap: 12px;
+  align-items: flex-start;
+}
+.entry-icon {
+  width: 30px;
+  height: 30px;
+}
+.entry-content > p {
+  margin: 5px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.entry-actions {
+  margin: 0;
+  flex-wrap: wrap;
+}
+.entry-actions .button,
+.view-instructions {
+  font-size: 11px;
+  min-height: 29px;
+  padding: 4px 7px;
+}
+.compact-pagination {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.compact-pagination .button {
+  min-height: 29px;
+  padding: 4px 9px;
+}
+.list-toolbar {
+  flex: none;
+  margin: 0 0 10px;
+}
+.card-grid {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 10px;
+}
+.project-card {
+  padding: 14px;
+  min-height: 0;
+  overflow: hidden;
+}
+.project-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.project-card h2 {
+  margin: 10px 0 6px;
+  font-size: 14px;
+}
+.project-card > p {
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-line-clamp: 2;
+}
+.project-card-footer {
+  padding-top: 8px;
+  font-size: 11px;
+}
+.projects-empty {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+.welcome-symbol {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 10px;
+}
+.welcome-kicker,
+.workspace-note {
+  display: none;
+}
+.workspace-welcome h2 {
+  font-size: clamp(24px, 2.5vw, 32px);
+}
+.workspace-welcome > p:not(.welcome-kicker) {
+  margin: 12px 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.workspace-starters {
+  margin-top: 24px;
+  gap: 8px;
+}
+.starter-card {
+  padding: 12px;
+}
+
+.sidebar-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(280px, calc(100vw - 48px));
+  height: 100dvh;
+  max-height: 100dvh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--primary);
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: var(--background);
+}
+.sidebar-drawer::backdrop {
+  background: rgb(0 0 0 / 28%);
+}
+.sidebar-drawer .sidebar {
+  padding-top: 34px;
+  border: 0;
+}
+.drawer-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
+}
+@media (max-width: 1100px) {
+  .chat-topbar .memory-badge {
+    display: none;
+  }
+  .provider-description {
+    font-size: 11px;
+  }
+}
+@media (max-width: 760px) {
+  .app-shell,
+  .app-shell.sidebar-is-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .main-panel {
+    grid-column: 1;
+  }
+  .chat-topbar {
+    padding: 5px 10px;
+    gap: 7px;
+  }
+  .chat-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .chat-conversation-title {
+    max-width: 100%;
+    font-size: 10px;
+  }
+  .chat-topbar .context-edit {
+    font-size: 10px;
+    padding: 5px;
+  }
+  .composer {
+    margin: 6px 10px 10px;
+    padding: 9px 10px;
+  }
+  .composer-catalog {
+    display: none;
+  }
+  .chat-model-control {
+    gap: 4px;
+  }
+  .chat-model-select.model-select {
+    max-width: 170px;
+  }
+  .composer-footer > span {
+    font-size: 9px;
+  }
+  .page-content {
+    padding: 12px 14px;
+  }
+  .page-heading {
+    margin-bottom: 10px;
+  }
+  .page-heading h1 {
+    font-size: 21px;
+  }
+  .page-description {
+    font-size: 11px;
+  }
+  .form-grid,
+  .provider-fields {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .form-panel,
+  .catalog-choice,
+  .provider-card,
+  .settings-default {
+    padding: 12px;
+  }
+  .catalog-entry {
+    flex-wrap: nowrap;
+  }
+  .entry-title {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .entry-actions {
+    margin-left: 0;
+    flex-direction: column;
+  }
+  .workspace-starters {
+    grid-template-columns: 1fr 1fr;
+    margin-top: 18px;
+  }
+  .starter-card strong {
+    font-size: 12px;
+  }
+  .starter-card small {
+    font-size: 10px;
+  }
+}
+@media (max-height: 600px) {
+  .page-content {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .page-heading {
+    margin-bottom: 8px;
+  }
+  .page-heading h1 {
+    font-size: 21px;
+  }
+  .page-heading .eyebrow,
+  .page-description,
+  .provider-description,
+  .provider-panel .hint {
+    display: none;
+  }
+  .section-heading {
+    margin-bottom: 8px;
+  }
+  .section-heading p {
+    font-size: 11px;
+  }
+  .management-tabs {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+  }
+  .field {
+    margin-bottom: 8px;
+  }
+  .input,
+  .select,
+  .textarea {
+    padding: 6px 9px;
+  }
+  .textarea {
+    max-height: 100px;
+  }
+  .composer {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+  .composer-input {
+    min-height: 32px;
+    max-height: 90px;
+  }
+  .composer-context {
+    margin-top: 4px;
+  }
+  .chat-topbar {
+    min-height: 42px;
+  }
+  .brand-tagline {
+    display: none;
+  }
+  .sidebar-history {
+    margin-top: 14px;
+  }
+  .welcome-symbol {
+    margin-bottom: 6px;
+  }
+  .workspace-welcome > p:not(.welcome-kicker) {
+    margin: 8px 0 12px;
+  }
+  .workspace-starters {
+    margin-top: 14px;
+  }
+}

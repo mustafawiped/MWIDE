@@ -4,6 +4,10 @@ import type { CatalogItem, ProjectDraft, Recommendation } from '../../shared/con
 import type { WorkspaceController } from './useWorkspace'
 import { Icon, Textarea } from './ui'
 import { focusInvalidField } from './formValidation'
+import { CompactTabs } from './CompactTabs'
+
+type ProjectSection = 'brief' | 'rules' | 'architecture' | 'toolkit'
+const catalogPageSize = 2
 
 export function ProjectEditor({
   initial,
@@ -27,7 +31,15 @@ export function ProjectEditor({
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [recommendationDone, setRecommendationDone] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [activeTab, setActiveTab] = useState<ProjectSection>('brief')
+  const [catalogPage, setCatalogPage] = useState(0)
   const disabled = workspace.pending || Boolean(workspace.generatingId)
+  const pageCount = Math.max(1, Math.ceil(catalog.length / catalogPageSize))
+  const currentPage = Math.min(catalogPage, pageCount - 1)
+  const visibleCatalog = catalog.slice(
+    currentPage * catalogPageSize,
+    (currentPage + 1) * catalogPageSize,
+  )
   const updateDraft = (next: ProjectDraft) => {
     setDraft(next)
     workspace.markDirty(
@@ -77,163 +89,233 @@ export function ProjectEditor({
     setErrors(nextErrors)
     const first = Object.keys(nextErrors)[0]
     if (first) {
-      focusInvalidField(event.currentTarget, first)
+      const form = event.currentTarget
+      setActiveTab('brief')
+      requestAnimationFrame(() => focusInvalidField(form, first))
       return
     }
     void onSave({ ...draft, name: draft.name.trim() })
   }
   return (
-    <form className="project-editor" noValidate onSubmit={submit}>
+    <form className="project-editor compact-editor" noValidate onSubmit={submit}>
+      <CompactTabs
+        id="project"
+        label="Project context sections"
+        selected={activeTab}
+        onSelect={setActiveTab}
+        disabled={disabled}
+        tabs={[
+          { value: 'brief', label: 'Brief', invalid: Boolean(errors.name || errors.description) },
+          { value: 'rules', label: 'Rules' },
+          { value: 'architecture', label: 'Architecture' },
+          { value: 'toolkit', label: 'MCPs & Skills' },
+        ]}
+      />
       <fieldset disabled={disabled} className="editor-grid">
-        <div className="panel form-panel">
-          <div className="section-heading">
-            <h2>Project context</h2>
-            <p>A clear brief gives every conversation a useful starting point.</p>
-          </div>
-          <label className="field">
-            <span className="field-label">
-              Project name <span className="required">*</span>
-            </span>
-            <input
-              className="input"
-              name="name"
-              required
-              maxLength={120}
-              value={draft.name}
-              onChange={(event) => setField('name', event.target.value)}
-              placeholder="A name for your next idea"
-              autoFocus
-              aria-invalid={Boolean(errors.name)}
-              aria-describedby={errors.name ? 'project-name-error' : undefined}
-            />
-            {errors.name && (
-              <span className="field-error" id="project-name-error">
-                {errors.name}
-              </span>
-            )}
-          </label>
-          <label className="field">
-            <span className="field-label">
-              Description <span className="required">*</span>
-            </span>
-            <Textarea
-              className="textarea resize-none"
-              name="description"
-              required
-              rows={4}
-              maxLength={20_000}
-              value={draft.description}
-              onChange={(event) => setField('description', event.target.value)}
-              placeholder="What are you building, and who is it for?"
-              aria-invalid={Boolean(errors.description)}
-              aria-describedby={errors.description ? 'project-description-error' : undefined}
-            />
-            {errors.description && (
-              <span className="field-error" id="project-description-error">
-                {errors.description}
-              </span>
-            )}
-          </label>
-          <label className="field">
-            <span className="field-label">
-              Additional rules <span className="optional">Optional</span>
-            </span>
-            <Textarea
-              className="textarea resize-none"
-              rows={3}
-              maxLength={12_000}
-              name="rules"
-              value={draft.rules}
-              onChange={(event) => setField('rules', event.target.value)}
-              placeholder="Conventions, constraints, and things to keep in mind"
-            />
-          </label>
-          <label className="field">
-            <span className="field-label">
-              Architecture notes <span className="optional">Optional</span>
-            </span>
-            <Textarea
-              className="textarea resize-none"
-              rows={3}
-              maxLength={20_000}
-              value={draft.architecture}
-              name="architecture"
-              onChange={(event) => setField('architecture', event.target.value)}
-              placeholder="Not decided yet"
-            />
-          </label>
-        </div>
-        <div className="panel catalog-choice">
-          <div className="section-heading">
-            <h2>MCPs & Skills</h2>
-            <p>Select the catalog instructions to include in this project.</p>
-          </div>
-          <button
-            className="button secondary full-width"
-            type="button"
-            disabled={!draft.name.trim() || !draft.description.trim() || catalog.length === 0}
-            onClick={() => void recommend()}
+        {activeTab === 'brief' && (
+          <div
+            className="panel form-panel editor-section"
+            id="project-panel-brief"
+            role="tabpanel"
+            aria-labelledby="project-tab-brief"
           >
-            <Icon name="sparkles" size={16} />
-            Recommend MCPs & Skills
-          </button>
-          <p className="hint">
-            Uses your default provider and model. Review the suggestions, then apply the ones you
-            want.
-          </p>
-          {recommendations.length > 0 && (
-            <button
-              className="button secondary full-width"
-              type="button"
-              disabled={recommendations.every((item) => draft.catalogIds.includes(item.id))}
-              onClick={applyRecommendations}
-            >
-              {recommendations.every((item) => draft.catalogIds.includes(item.id))
-                ? 'Recommendations selected'
-                : 'Apply recommendations'}
-            </button>
-          )}
-          {catalog.length === 0 ? (
-            <p className="inline-empty">
-              Your catalog is empty. Add MCPs or skills in Catalog to make them available here.
-            </p>
-          ) : (
-            <div className="catalog-options">
-              {catalog.map((item) => (
-                <label key={item.id} className="catalog-option">
-                  <input
-                    type="checkbox"
-                    checked={draft.catalogIds.includes(item.id)}
-                    onChange={() => toggle(item.id)}
-                  />
-                  <span>
-                    <span className="catalog-option-title">
-                      {item.name}
-                      <span className="badge">{item.kind === 'mcp' ? 'MCP' : 'Skill'}</span>
-                    </span>
-                    <span className="catalog-option-description">{item.description}</span>
-                    {recommendations.find((entry) => entry.id === item.id)?.reason && (
-                      <span className="recommendation">
-                        {recommendations.find((entry) => entry.id === item.id)?.reason}
-                      </span>
-                    )}
-                  </span>
-                </label>
-              ))}
+            <div className="section-heading">
+              <h2>Project context</h2>
+              <p>A clear brief gives every conversation a useful starting point.</p>
             </div>
-          )}
-          {recommendationDone && recommendations.length === 0 && (
-            <p className="notice">No matching catalog entries were recommended.</p>
-          )}
-          <div className="context-tip">
-            <Icon name="sparkles" size={18} />
-            <p>
-              Keep useful context close.
-              <br />
-              <span>Your brief and selected instructions accompany each chat.</span>
-            </p>
+            <label className="field">
+              <span className="field-label">
+                Project name <span className="required">*</span>
+              </span>
+              <input
+                className="input"
+                name="name"
+                required
+                maxLength={120}
+                value={draft.name}
+                onChange={(event) => setField('name', event.target.value)}
+                placeholder="A name for your next idea"
+                aria-invalid={Boolean(errors.name)}
+                aria-describedby={errors.name ? 'project-name-error' : undefined}
+              />
+              {errors.name && (
+                <span className="field-error" id="project-name-error">
+                  {errors.name}
+                </span>
+              )}
+            </label>
+            <label className="field expanding-field">
+              <span className="field-label">
+                Description <span className="required">*</span>
+              </span>
+              <Textarea
+                className="textarea resize-none"
+                name="description"
+                required
+                rows={3}
+                maxLength={20_000}
+                value={draft.description}
+                onChange={(event) => setField('description', event.target.value)}
+                placeholder="What are you building, and who is it for?"
+                aria-invalid={Boolean(errors.description)}
+                aria-describedby={errors.description ? 'project-description-error' : undefined}
+              />
+              {errors.description && (
+                <span className="field-error" id="project-description-error">
+                  {errors.description}
+                </span>
+              )}
+            </label>
           </div>
-        </div>
+        )}
+        {activeTab === 'rules' && (
+          <div
+            className="panel form-panel editor-section"
+            id="project-panel-rules"
+            role="tabpanel"
+            aria-labelledby="project-tab-rules"
+          >
+            <div className="section-heading">
+              <h2>Additional rules</h2>
+              <p>Conventions and constraints that accompany every conversation.</p>
+            </div>
+            <label className="field expanding-field">
+              <span className="field-label">
+                Additional rules <span className="optional">Optional</span>
+              </span>
+              <Textarea
+                className="textarea resize-none"
+                rows={5}
+                maxLength={12_000}
+                name="rules"
+                value={draft.rules}
+                onChange={(event) => setField('rules', event.target.value)}
+                placeholder="Conventions, constraints, and things to keep in mind"
+              />
+            </label>
+          </div>
+        )}
+        {activeTab === 'architecture' && (
+          <div
+            className="panel form-panel editor-section"
+            id="project-panel-architecture"
+            role="tabpanel"
+            aria-labelledby="project-tab-architecture"
+          >
+            <div className="section-heading">
+              <h2>Architecture notes</h2>
+              <p>Keep the project's complete technical context close to your chats.</p>
+            </div>
+            <label className="field expanding-field">
+              <span className="field-label">
+                Architecture notes <span className="optional">Optional</span>
+              </span>
+              <Textarea
+                className="textarea resize-none"
+                rows={5}
+                maxLength={20_000}
+                value={draft.architecture}
+                name="architecture"
+                onChange={(event) => setField('architecture', event.target.value)}
+                placeholder="Not decided yet"
+              />
+            </label>
+          </div>
+        )}
+        {activeTab === 'toolkit' && (
+          <div
+            className="panel catalog-choice editor-section"
+            id="project-panel-toolkit"
+            role="tabpanel"
+            aria-labelledby="project-tab-toolkit"
+          >
+            <div className="section-heading">
+              <h2>MCPs & Skills</h2>
+              <p>{draft.catalogIds.length} selected. These instructions accompany each chat.</p>
+            </div>
+            <div className="catalog-choice-actions">
+              <button
+                className="button secondary"
+                type="button"
+                disabled={!draft.name.trim() || !draft.description.trim() || catalog.length === 0}
+                onClick={() => void recommend()}
+              >
+                <Icon name="sparkles" size={16} />
+                Recommend MCPs & Skills
+              </button>
+              {recommendations.length > 0 && (
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={recommendations.every((item) => draft.catalogIds.includes(item.id))}
+                  onClick={applyRecommendations}
+                >
+                  {recommendations.every((item) => draft.catalogIds.includes(item.id))
+                    ? 'Recommendations selected'
+                    : 'Apply recommendations'}
+                </button>
+              )}
+            </div>
+            <p className="hint">
+              Uses your default provider and model. Apply suggestions to select them.
+            </p>
+            {catalog.length === 0 ? (
+              <p className="inline-empty">
+                Your catalog is empty. Add MCPs or skills in Catalog to make them available here.
+              </p>
+            ) : (
+              <div className="catalog-options">
+                {visibleCatalog.map((item) => (
+                  <label key={item.id} className="catalog-option">
+                    <input
+                      type="checkbox"
+                      checked={draft.catalogIds.includes(item.id)}
+                      onChange={() => toggle(item.id)}
+                    />
+                    <span>
+                      <span className="catalog-option-title">
+                        {item.name}
+                        <span className="badge">{item.kind === 'mcp' ? 'MCP' : 'Skill'}</span>
+                      </span>
+                      <span className="catalog-option-description">{item.description}</span>
+                      {recommendations.find((entry) => entry.id === item.id)?.reason && (
+                        <span className="recommendation">
+                          {recommendations.find((entry) => entry.id === item.id)?.reason}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {catalog.length > catalogPageSize && (
+              <nav className="compact-pagination" aria-label="Project catalog pages">
+                <button
+                  className="button ghost"
+                  type="button"
+                  disabled={currentPage === 0}
+                  onClick={() => setCatalogPage(currentPage - 1)}
+                >
+                  Previous
+                </button>
+                <span className="hint" aria-live="polite">
+                  {currentPage + 1} / {pageCount}
+                </span>
+                <button
+                  className="button ghost"
+                  type="button"
+                  disabled={currentPage === pageCount - 1}
+                  onClick={() => setCatalogPage(currentPage + 1)}
+                >
+                  Next
+                </button>
+              </nav>
+            )}
+            {recommendationDone && recommendations.length === 0 && (
+              <p className="notice">No matching catalog entries were recommended.</p>
+            )}
+          </div>
+        )}
       </fieldset>
       <div className="form-actions">
         <button className="button ghost" type="button" onClick={onCancel} disabled={disabled}>

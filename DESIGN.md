@@ -29,10 +29,9 @@ rounded:
   input: 12px
   card: 16px
   panel: 16px
-spacing:
-  section-gap: 32px
-  page-max: 1180px
-  reading-max: 900px
+omitted:
+  - section: spacing
+    reason: Responsive viewport geometry and compact component spacing are owned by workspace-layout.css.
 components:
   button: {}
   panel: {}
@@ -50,7 +49,7 @@ The supplied Perplexity style reference informs compact density, off-white surfa
 
 All owned copy is English. No Japan-market scope or additional UI locale is currently specified. The primary setting is a desktop or laptop with frequent keyboard use. Keep navigation familiar, content dense enough for work, and decorative motion absent.
 
-Runtime CSS in `src/renderer/src/styles.css` is the canonical token owner. This file mirrors accepted values and records rationale; it does not generate a second theme. Change runtime tokens and this document together. Verify documented values against CSS and run `designmd lint DESIGN.md` after changes.
+Runtime CSS in `src/renderer/src/styles.css` is the canonical color, typography-family, and radius token owner. `src/renderer/src/workspace-layout.css`, imported after it, owns viewport geometry and compact component sizing. This file mirrors accepted values and records rationale; it does not generate a second theme. Change runtime tokens and this document together. Verify documented values against CSS and run `designmd lint DESIGN.md` after changes. The earlier fixed content-width and section-gap tokens do not define the current viewport layout.
 
 ## Colors
 
@@ -60,13 +59,19 @@ Mapping: `colors.<name>` maps directly to `--<name>` in `styles.css`, including 
 
 ## Typography
 
-`typography.body` maps to `--font-body` and the root font family. Segoe UI follows the supplied brand guidance; native fallbacks avoid download shifts. Use 400 and 500 weights throughout, a 28px page title, 16px panel titles, and 14px body text and labels with generous line height. Utility captions may be smaller. `typography.utility` maps to `--font-utility` for technical metadata, keyboard hints, and preserved catalog instructions. Monospace is a quiet utility layer rather than the body font. Keep user content's line breaks and permit long identifiers to wrap.
+`typography.body` maps to `--font-body` and the root font family. Segoe UI follows the supplied brand guidance; native fallbacks avoid download shifts. Use 400 and 500 weights throughout. Conversation messages use 14px text with a 1.65 line height; management page titles use 24px, reducing to 21px in narrow or short windows. Compact chat headings, panel headings, fields, labels, and utility captions use the smaller sizes defined by the geometry stylesheet. `typography.utility` maps to `--font-utility` for technical metadata, keyboard hints, and code. Monospace is a quiet utility layer rather than the body font. Keep user content's line breaks and permit long identifiers to wrap.
 
 ## Layout
 
-The desktop navigation rail is 252px, reducing to 220px at 1100px and below. It contains the brand, a collapsed Workspace disclosure for Projects, Catalog, and Providers, a project switcher with a New project action, New conversation, and the selected project's chat history. Keep history in this single rail; the conversation screen does not add another conversation-list column. The main surface gives project chat priority, while management pages remain reachable from Workspace.
+The application fills a fixed `100dvh` viewport. The document, root, application shell, main surface, management pages, and form panels do not scroll. The two content scroll owners are the sidebar and the chat message log. Text inputs may scroll their own editable value internally. Use `min-height: 0` and bounded flex/grid children throughout; adding page or panel overflow is not a remedy for content that does not fit.
 
-The working-area maximum is 1180px; conversation content is capped at a 900px reading width. The project editor section gap is 32px, with compact element gaps and 16–26px component padding. These values map to `.app-shell`, `.page-content`, `.editor-grid`, and the conversation reading column in the runtime stylesheet. At 1100px, forms stack. Narrow layouts preserve access to workspace destinations, project switching, history, and chat actions. Forms scroll with the page. The message log owns chat scrolling and follows new content only while the reader is near the bottom.
+The desktop navigation rail uses `clamp(216px, 18vw, 252px)` and can be collapsed. It contains the brand, a collapsed Workspace disclosure for Projects, Catalog, and Providers, a project switcher with a New project action, New conversation, and the selected project's chat history. Keep history in this single rail; the conversation screen does not add another conversation-list column. At 760px and below, the rail opens as the native modal `SidebarDrawer` above the main surface. All navigation and history remain reachable through its toggle.
+
+Project chat uses the full remaining width, without the earlier 900px reading cap or a centered maximum-width page. A single compact header contains sidebar access, project and conversation identity, memory status, and project context. The outer application bar is omitted on chat. The message log takes all remaining height above the composer; conversation memory expands inside that log. The composer stays visible while messages scroll and grows only to its bounded input height.
+
+Management uses compact section tabs and local pagination instead of page or form scrollbars. Project setup separates Brief, Rules, Architecture, and MCPs & Skills; Providers separates ChatGPT, Ollama, and Defaults; catalog editing separates Details and Instructions. Catalog lists and project toolkit selection show two entries per page. The Projects grid adapts its page size to available window space. Actions remain visible within the viewport. At short heights, reduce spacing and secondary explanatory copy before constraining editable fields.
+
+The native window opens at 90% of the primary display work area, clamped between 640×480 and 1440×960. The minimum supported window is 640×480. Verify compact states at that size; expanding the default window is not a substitute for fitting the workspace.
 
 ## Elevation & Depth
 
@@ -80,18 +85,23 @@ Buttons map to the 6px `--radius-control`; fields and the composer use the 12px 
 
 `ui.tsx` owns icons, headings, empty states, auto-growing textareas, and confirmation dialogs. Buttons retain primary, secondary, ghost, and danger treatments, with visible hover, focus, active, and disabled states. Busy operations preserve labels and show the shared pending region. Native selects deliberately retain platform-owned popup geometry and keyboard behavior.
 
+`CompactTabs` owns management section navigation, with arrow-key, Home, and End behavior and associated tab panels. `SidebarDrawer` owns the compact modal navigation surface, including initial focus, Escape dismissal, and focus restoration. `ChatModelControl` owns the composer provider/model selects, explicit Check AI connection/model discovery, and Configure AI navigation. Changing a selection saves the default settings; it does not prove a live connection.
+
+`MessageContent` renders assistant paragraphs, modest headings, lists, bold text, inline code, and fenced code without interpreting model output as HTML. Code blocks use utility typography and expose Copy code with success or unavailable feedback. Wrap long code within the chat log rather than introducing another content scroller.
+
 Sidebar disclosures use compact neutral summary rows with a visible expansion indicator. Project and conversation entries expose selection without relying on color alone. Keep the project switcher and chat history available while browsing Workspace pages so the selected project stays visible and returning to a conversation remains direct.
 
 The supplied logo kit is the authority for brand artwork. `src/renderer/src/assets/mwide-horizontal-black.svg` anchors the sidebar; `mwide-symbol-black.svg` supports compact and empty-state use. Preserve their geometry and black artwork, with at least one rail width of clear space. Use the horizontal lockup at 160px or wider and the regular symbol at 24px or larger. The favicon uses the kit's dedicated small drawing. The native window uses the supplied 256px app icon, imported through the Electron asset pipeline so it is included in production output. Brand imagery has fixed dimensions to avoid layout shifts. Do not recreate the mark with text or CSS. The exact tagline is “Easy MCP and Skill Management.”
 
 The native window startup background and HTML theme color match `main` to avoid a dark flash before the renderer appears. There is no independent desktop theme or alternate dark palette.
 
-Forms use app-owned text validation and field associations. Textareas grow from their declared row count to a bounded scrollable height. Global scrollbar styling applies to every owned scroll region. Dialogs initially focus the safe action, trap focus through native modal behavior, accept Escape as cancellation, and restore trigger focus. English action labels state what happens; empty and failed states explain the next useful action. The hand-drawn stroke icons in `Icon` remain decorative when a text label is present. Reduced motion disables animation.
+Forms use app-owned text validation and field associations. Textareas grow from their declared row count to a bounded height and may scroll their editable value internally. Global scrollbar styling applies to every owned scroll region. Confirmation dialogs initially focus the safe action, trap focus through native modal behavior, accept Escape as cancellation, and restore trigger focus. English action labels state what happens; empty and failed states explain the next useful action. The hand-drawn stroke icons in `Icon` remain decorative when a text label is present. Reduced motion disables animation.
 
 ## Do's and Don'ts
 
 - Keep the complete project purpose and architecture distinct from compact conversation memory.
 - Give project chat and its history priority; group management destinations inside the sidebar Workspace disclosure.
+- Keep the document fixed to the viewport; fit management content with tabs and pagination, and reserve content scrolling for the sidebar and message log.
 - Reuse the neutral surface hierarchy, black primary actions, shared form behavior, and explicit action vocabulary.
 - Keep the supplied logo black on light surfaces and preserve its proportions and clear space.
 - Do not present catalog selection as tool execution or provider configuration as a verified connection.

@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
-import type { FormEvent, JSX } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent, JSX, ReactNode } from 'react'
 import type { Conversation, Project } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
+import { ChatModelControl } from './ChatModelControl'
+import { MessageContent } from './MessageContent'
 import { Icon, Textarea } from './ui'
 import symbolBlack from './assets/mwide-symbol-black.svg'
 
@@ -11,12 +13,16 @@ export function ChatWorkspace({
   conversationId,
   onNewConversation,
   onEdit,
+  onConfigureProvider,
+  headerStart,
 }: {
   project: Project
   workspace: WorkspaceController
   conversationId?: string
-  onNewConversation: () => void
+  onNewConversation: () => Promise<string | undefined>
   onEdit: () => void
+  onConfigureProvider: () => void
+  headerStart?: ReactNode
 }): JSX.Element {
   const conversations = (workspace.state?.conversations ?? []).filter(
     (item) => item.projectId === project.id,
@@ -24,8 +30,13 @@ export function ChatWorkspace({
   const drafts = workspace.chatDrafts
   const setDrafts = workspace.setChatDrafts
   const active = conversations.find((item) => item.id === conversationId) ?? conversations.at(-1)
-  const draft = active ? (drafts[active.id] ?? '') : ''
+  const draftKey = active?.id ?? `project:${project.id}`
+  const draft = drafts[draftKey] ?? ''
+  const [submitting, setSubmitting] = useState(false)
+  const [submitNotice, setSubmitNotice] = useState('')
+  const submittingRef = useRef(false)
   const busy = Boolean(workspace.generatingId)
+  const controlsDisabled = busy || workspace.pending || submitting
   const streaming = active?.id === workspace.generatingId && !workspace.responseSaved
   const savingMemory = active?.id === workspace.generatingId && workspace.responseSaved
   const streamContainer = useRef<HTMLDivElement>(null)
@@ -33,7 +44,6 @@ export function ChatWorkspace({
   const displayedConversation = useRef<string | undefined>(undefined)
   const composer = useRef<HTMLFormElement>(null)
   const settings = workspace.state?.settings
-  const provider = settings?.defaultProvider === 'ollama' ? 'Ollama' : 'ChatGPT / Codex'
   const model = settings?.defaultProvider === 'ollama' ? settings.ollamaModel : settings?.codexModel
   const selectedCatalog = (workspace.state?.catalog ?? []).filter((entry) =>
     project.catalogIds.includes(entry.id),
@@ -51,18 +61,37 @@ export function ChatWorkspace({
   }, [active?.id, active?.messages.length, workspace.stream])
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!active || !draft.trim() || busy || workspace.pending) return
+    if (!draft.trim() || controlsDisabled || submittingRef.current) return
+    if (!model) {
+      setSubmitNotice(
+        'Choose an AI model below. Use Check AI to discover models or Configure AI to connect.',
+      )
+      return
+    }
     const content = draft.trim()
-    const conversationId = active.id
-    followLatest.current = true
-    setDrafts((previous) => ({ ...previous, [conversationId]: '' }))
-    const sent = await workspace.send(conversationId, content)
-    if (!sent)
-      setDrafts((previous) => ({
-        ...previous,
-        [conversationId]: previous[conversationId] || content,
-      }))
-    composer.current?.querySelector('textarea')?.focus()
+    let targetId = active?.id
+    submittingRef.current = true
+    setSubmitting(true)
+    setSubmitNotice('')
+    try {
+      targetId ??= await onNewConversation()
+      if (!targetId) return
+      const id = targetId
+      followLatest.current = true
+      setDrafts((previous) => ({ ...previous, [draftKey]: '', [id]: '' }))
+      const sent = await workspace.send(id, content)
+      if (!sent) setDrafts((previous) => ({ ...previous, [id]: previous[id] || content }))
+    } catch {
+      if (targetId) {
+        const id = targetId
+        setDrafts((previous) => ({ ...previous, [id]: previous[id] || content }))
+      }
+      setSubmitNotice('Your message was kept. Please try again.')
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+      requestAnimationFrame(() => composer.current?.querySelector('textarea')?.focus())
+    }
   }
   const renderMessages = (conversation: Conversation) => (
     <>
@@ -84,7 +113,11 @@ export function ChatWorkspace({
                 </span>
                 {message.status !== 'complete' && <span className="badge">{message.status}</span>}
               </div>
-              <div className="message-content">{message.content}</div>
+              {message.role === 'assistant' ? (
+                <MessageContent content={message.content} />
+              ) : (
+                <div className="message-content">{message.content}</div>
+              )}
             </div>
           </article>
         ))}
@@ -100,7 +133,7 @@ export function ChatWorkspace({
                 {workspace.cancelling ? 'Stopping…' : 'Responding…'}
               </span>
             </div>
-            <div className="message-content">{workspace.stream || 'Waiting for the model…'}</div>
+            <MessageContent content={workspace.stream || 'Waiting for the model…'} />
           </div>
         </article>
       )}
@@ -109,41 +142,33 @@ export function ChatWorkspace({
   return (
     <div className="project-workspace">
       <header className="chat-topbar">
-        <div className="project-breadcrumb">
-          <span className="eyebrow">PROJECT</span>
-          <h1>{project.name}</h1>
+        {headerStart}
+        <div className="chat-heading">
+          <span className="chat-project-name">{project.name}</span>
+          <h1 className="chat-conversation-title">{active?.title ?? 'New conversation'}</h1>
         </div>
-        <span className="project-utility">Project chat</span>
+        <span className="memory-badge" role={savingMemory ? 'status' : undefined}>
+          <span aria-hidden="true" />
+          {savingMemory
+            ? workspace.cancelling
+              ? 'Response saved · stopping memory update…'
+              : 'Response saved · updating memory…'
+            : active?.summary
+              ? 'Memory saved'
+              : 'Project context included'}
+        </span>
         <button
           className="button ghost context-edit"
-          disabled={busy || workspace.pending}
+          disabled={controlsDisabled}
           onClick={onEdit}
+          title="Edit project context"
         >
-          Edit project context
+          <Icon name="projects" size={16} />
+          <span>Project context</span>
         </button>
       </header>
       <div className="workspace-layout">
         <section className="chat-main" aria-label="Conversation">
-          <header className="chat-header">
-            <div>
-              <h2>{active?.title ?? 'Start a conversation'}</h2>
-              <span className="model-label">
-                {provider}
-                <span> / </span>
-                {model || 'No model selected'}
-              </span>
-            </div>
-            <span className="memory-badge" role={savingMemory ? 'status' : undefined}>
-              <span aria-hidden="true" />
-              {savingMemory
-                ? workspace.cancelling
-                  ? 'Response saved · stopping memory update…'
-                  : 'Response saved · updating memory…'
-                : active?.summary
-                  ? 'Context memory saved'
-                  : 'Project context included'}
-            </span>
-          </header>
           <div
             className="chat-stream"
             ref={streamContainer}
@@ -161,83 +186,85 @@ export function ChatWorkspace({
             {!active || (active.messages.length === 0 && !streaming) ? (
               <div className="empty-state chat-empty-state">
                 <img className="chat-empty-mark" src={symbolBlack} alt="" />
-                <span className="chat-empty-kicker">
-                  {active ? 'NEW CONVERSATION' : 'PROJECT WORKSPACE'}
-                </span>
-                <h2>
-                  {active ? 'What would you like to work on?' : `Start working in ${project.name}.`}
-                </h2>
+                <span className="chat-empty-kicker">{project.name}</span>
+                <h2>What would you like to work on?</h2>
                 <p>
-                  {active
-                    ? 'Your project context is included. Bring an idea, a question, or your next step.'
-                    : 'Create a conversation to work with your project brief and selected instructions.'}
+                  Ask a question, describe a change, or share an idea. Your project context is
+                  included.
                 </p>
-                {!active && (
-                  <div className="chat-empty-actions">
-                    <button
-                      className="button primary"
-                      disabled={busy || workspace.pending}
-                      onClick={onNewConversation}
-                    >
-                      <Icon name="plus" size={16} />
-                      New conversation
-                    </button>
-                    <button
-                      className="button ghost"
-                      disabled={busy || workspace.pending}
-                      onClick={onEdit}
-                    >
-                      Edit project context
-                    </button>
-                  </div>
-                )}
               </div>
             ) : (
               renderMessages(active)
             )}
+            {active && active.messages.length > 0 && (
+              <details className="context-panel">
+                <summary>
+                  <span>Conversation memory</span>
+                  <span className="muted small">
+                    {active.summary
+                      ? `${active.summaryThrough} messages summarized`
+                      : 'No summary yet'}
+                  </span>
+                </summary>
+                <div className="context-summary">
+                  <p>
+                    {active.summary ||
+                      'Save a compact summary of earlier messages for future replies.'}
+                  </p>
+                  <button
+                    className="button secondary"
+                    disabled={controlsDisabled}
+                    onClick={() =>
+                      void workspace.mutate((bridge) => bridge.summarizeConversation(active.id))
+                    }
+                  >
+                    <Icon name="sparkles" size={15} />
+                    Optimize conversation
+                  </button>
+                </div>
+              </details>
+            )}
           </div>
-          {active && (
-            <details className="context-panel">
-              <summary>
-                <span>Conversation memory</span>
-                <span className="muted small">
-                  {active.summary
-                    ? `${active.summaryThrough} messages summarized`
-                    : 'No summary yet'}
-                </span>
-              </summary>
-              <div className="context-summary">
-                <p>
-                  {active.summary ||
-                    'Optimize this conversation to save a compact summary of earlier messages for future replies.'}
-                </p>
-                <button
-                  className="button secondary"
-                  disabled={busy || workspace.pending || active.messages.length === 0}
-                  onClick={() =>
-                    void workspace.mutate((bridge) => bridge.summarizeConversation(active.id))
-                  }
-                >
-                  <Icon name="sparkles" size={15} />
-                  Optimize conversation
-                </button>
-              </div>
-            </details>
-          )}
           <form
             ref={composer}
             className="composer"
             noValidate
             onSubmit={(event) => void submit(event)}
           >
+            <label className="sr-only" htmlFor="chat-message">
+              Message
+            </label>
+            <Textarea
+              id="chat-message"
+              className="composer-input resize-none"
+              rows={2}
+              maxLength={12_000}
+              value={draft}
+              disabled={controlsDisabled}
+              placeholder="Ask MWIDE anything, or describe what you want to build…"
+              aria-describedby="composer-hint"
+              onChange={(event) => {
+                setDrafts((previous) => ({ ...previous, [draftKey]: event.target.value }))
+                if (submitNotice) setSubmitNotice('')
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter' &&
+                  !event.nativeEvent.isComposing &&
+                  event.nativeEvent.keyCode !== 229 &&
+                  (!event.shiftKey || event.ctrlKey || event.metaKey)
+                ) {
+                  event.preventDefault()
+                  event.currentTarget.form?.requestSubmit()
+                }
+              }}
+            />
             <div className="composer-context">
-              <span
-                className="composer-model"
-                title={`${provider} / ${model || 'No model selected'}`}
-              >
-                <Icon name="sparkles" size={14} />
-                <span>{model || 'No model selected'}</span>
-              </span>
+              <ChatModelControl
+                workspace={workspace}
+                disabled={controlsDisabled}
+                onConfigureProvider={onConfigureProvider}
+              />
               <span
                 className="composer-catalog"
                 title="Selected catalog instructions included with this project"
@@ -246,39 +273,15 @@ export function ChatWorkspace({
                 {mcpCount} MCP · {skillCount} {skillCount === 1 ? 'skill' : 'skills'}
               </span>
             </div>
-            <label className="sr-only" htmlFor="chat-message">
-              Message
-            </label>
-            <Textarea
-              id="chat-message"
-              className="composer-input resize-none"
-              rows={3}
-              maxLength={12_000}
-              value={draft}
-              disabled={!active || busy || workspace.pending}
-              placeholder={
-                active
-                  ? 'Describe what you want to work on…'
-                  : 'Create a conversation to get started'
-              }
-              onChange={(event) => {
-                if (active)
-                  setDrafts((previous) => ({ ...previous, [active.id]: event.target.value }))
-              }}
-              onKeyDown={(event) => {
-                if (
-                  !event.nativeEvent.isComposing &&
-                  event.key === 'Enter' &&
-                  (event.ctrlKey || event.metaKey)
-                ) {
-                  event.preventDefault()
-                  event.currentTarget.form?.requestSubmit()
-                }
-              }}
-            />
+            {(!model || submitNotice) && (
+              <p className="composer-notice" role="status">
+                {submitNotice ||
+                  'Choose a model to start. Check AI to discover models, or Configure AI to connect.'}
+              </p>
+            )}
             <div className="composer-footer">
-              <span className="composer-hint">
-                {active ? 'Ctrl / ⌘ + Enter to send' : 'Each conversation keeps its own history.'}
+              <span className="composer-hint" id="composer-hint">
+                Enter to send · Shift + Enter for a new line
               </span>
               {busy ? (
                 <button
@@ -294,24 +297,14 @@ export function ChatWorkspace({
                       ? 'Stop memory update'
                       : 'Stop response'}
                 </button>
-              ) : active ? (
-                <button
-                  className="button primary"
-                  type="submit"
-                  disabled={!draft.trim() || workspace.pending}
-                >
-                  <Icon name="send" size={16} />
-                  Send
-                </button>
               ) : (
                 <button
                   className="button primary"
-                  type="button"
-                  disabled={workspace.pending}
-                  onClick={onNewConversation}
+                  type="submit"
+                  disabled={!draft.trim() || !model || controlsDisabled}
                 >
-                  <Icon name="plus" size={16} />
-                  New conversation
+                  <Icon name="send" size={16} />
+                  {submitting ? 'Starting…' : 'Send'}
                 </button>
               )}
             </div>

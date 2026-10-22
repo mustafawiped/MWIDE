@@ -1,6 +1,6 @@
 /// <reference types="electron-vite/node" />
 
-import { app, BrowserWindow, Menu, session } from 'electron'
+import { app, BrowserWindow, Menu, screen, session } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import appIcon from '../renderer/src/assets/mwide-app-icon-256.png?asset'
@@ -12,11 +12,12 @@ const rendererUrl = developmentUrl ?? pathToFileURL(rendererFile).href
 let workspace: Awaited<ReturnType<typeof registerWorkspace>> | undefined
 
 async function createWindow(): Promise<void> {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize
   const window = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 980,
-    minHeight: 700,
+    width: Math.max(640, Math.min(1440, Math.round(width * 0.9))),
+    height: Math.max(480, Math.min(960, Math.round(height * 0.9))),
+    minWidth: 640,
+    minHeight: 480,
     title: 'MWIDE',
     icon: appIcon,
     backgroundColor: '#fafaf9',
