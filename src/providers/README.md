@@ -2,6 +2,6 @@
 
 ChatGPT uses the Codex app-server engine as a local child process. Ollama is an independent local provider. MWIDE owns projects, conversations, protected project context, and MCP/Skill selections.
 
-The Codex adapter will handle initialization, threads, turns, streaming, cancellation, and resume. Engine choice is separate from authentication: eligible ChatGPT plan usage, API-key billing, and local-server access are distinct routes.
+The Codex adapter owns an isolated sign-in profile and ephemeral threads. It supplies MWIDE history, streams text, handles cancellation, and rejects tool requests. API-key accounts are not used. The protocol fixtures target Codex `0.163.0-alpha.11`; other installed versions must pass the capability checks before use.
 
-Live connections follow the UI preview milestone. Keep credentials outside the renderer, expose supported capabilities explicitly, and define protocol pinning, token renewal, and recovery during integration.
+Ollama uses a loopback HTTP connection, local completion models, streamed responses, and cancellation. Context budgets reject oversized requests without truncating protected project fields. Credentials and network/process access remain outside the renderer.
