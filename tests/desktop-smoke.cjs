@@ -1,9 +1,9 @@
 const assert = require('node:assert/strict')
-const { mkdtemp, mkdir, readFile, writeFile } = require('node:fs/promises')
+const { mkdtemp, mkdir, readFile, realpath, writeFile } = require('node:fs/promises')
 const http = require('node:http')
 const { tmpdir } = require('node:os')
 const { dirname, join, resolve } = require('node:path')
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 
 app.commandLine.appendSwitch('force-prefers-reduced-motion')
 
@@ -11,6 +11,10 @@ const requests = []
 let serviceAvailable = true
 let holdSummary = false
 let summaryHeld = false
+let codexUsageAvailable = true
+let codexUsageReads = 0
+let cancelledFolderSelection = false
+const folderSelections = []
 const summary = 'Decision: keep isolated adapters. Next: verify project continuity.'
 const project = {
   name: 'Continuity test',
@@ -82,6 +86,102 @@ async function run() {
   await mkdir(base, { recursive: true })
   const directory = await mkdtemp(join(base, 'mwide-desktop-'))
   app.setPath('userData', directory)
+  const selectedFolder = join(directory, 'selected-project')
+  const ungrantedFolder = join(directory, 'ungranted-project')
+  await mkdir(join(selectedFolder, 'src'), { recursive: true })
+  await mkdir(join(selectedFolder, 'node_modules'), { recursive: true })
+  await mkdir(ungrantedFolder)
+  await Promise.all([
+    writeFile(
+      join(selectedFolder, 'src', 'entry.ts'),
+      'export function initialProjectEntry() { return true }\n',
+    ),
+    writeFile(join(selectedFolder, '.env'), 'PRIVATE_TOKEN=must-never-reach-provider\n'),
+    writeFile(join(selectedFolder, '.gitignore'), 'ignored-private.ts\n'),
+    writeFile(
+      join(selectedFolder, 'ignored-private.ts'),
+      'export const ignoredPrivateSymbol = true\n',
+    ),
+    writeFile(
+      join(selectedFolder, 'node_modules', 'dependency.ts'),
+      'export const excludedDependency = true\n',
+    ),
+  ])
+  const canonicalFolder = await realpath(selectedFolder)
+  dialog.showOpenDialog = async (_owner, options) => {
+    folderSelections.push(options)
+    return cancelledFolderSelection
+      ? { canceled: true, filePaths: [] }
+      : { canceled: false, filePaths: [selectedFolder] }
+  }
+  // Only account discovery is a fixture. Folder grants, persistence, prompts and all other IPC stay real.
+  const realHandle = ipcMain.handle.bind(ipcMain)
+  ipcMain.handle = (channel, handler) =>
+    realHandle(channel, async (event, method, input) => {
+      if (channel === 'mwide:request' && method === 'inspectProvider' && input === 'codex') {
+        return {
+          id: 'codex',
+          connected: true,
+          detail: 'Desktop fixture account; no Codex inference is performed.',
+          models: ['fixture-codex', 'fixture-codex-other'],
+          modelCapabilities: [
+            {
+              model: 'fixture-codex',
+              defaultReasoningEffort: 'medium',
+              reasoningEfforts: [
+                { value: 'low', description: 'Fixture low effort' },
+                { value: 'medium', description: 'Fixture medium effort' },
+                { value: 'high', description: 'Fixture high effort' },
+              ],
+            },
+            {
+              model: 'fixture-codex-other',
+              defaultReasoningEffort: 'low',
+              reasoningEfforts: [{ value: 'low', description: 'Fixture low effort only' }],
+            },
+          ],
+        }
+      }
+      if (channel === 'mwide:request' && method === 'getCodexUsageLimits') {
+        codexUsageReads += 1
+        return {
+          available: codexUsageAvailable,
+          detail: codexUsageAvailable
+            ? 'Desktop fixture account limits.'
+            : 'Fixture account limits are temporarily unavailable.',
+          checkedAt: new Date().toISOString(),
+          buckets: codexUsageAvailable
+            ? [
+                {
+                  id: 'codex',
+                  name: 'Codex',
+                  primary: {
+                    remainingPercent: 72.5,
+                    windowDurationMins: 300,
+                    resetsAt: Math.floor(Date.now() / 1_000) + 3_600,
+                  },
+                  secondary: {
+                    remainingPercent: 89,
+                    windowDurationMins: 10_080,
+                    resetsAt: Math.floor(Date.now() / 1_000) + 604_800,
+                  },
+                },
+                {
+                  id: 'review',
+                  name: 'Code review',
+                  primary: {
+                    remainingPercent: 25,
+                    windowDurationMins: 1_440,
+                    resetsAt: Math.floor(Date.now() / 1_000) + 86_400,
+                  },
+                  secondary: null,
+                },
+              ]
+            : [],
+        }
+      }
+      return handler(event, method, input)
+    })
   await new Promise((accept, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', accept)
@@ -337,6 +437,28 @@ async function run() {
   await click('Architecture', '[role=tab]')
   await fill('textarea[name="architecture"]', project.architecture)
   await inspectLayout('create-project')
+  await click('Folder', '[role=tab]')
+  cancelledFolderSelection = true
+  await click('Choose folder')
+  await until(
+    () => evaluate('!document.querySelector(".project-editor fieldset").disabled'),
+    'folder selection cancelled',
+  )
+  assert.equal(
+    await evaluate('document.querySelector(".project-folder-path").textContent'),
+    'No folder selected',
+  )
+  cancelledFolderSelection = false
+  await click('Choose folder')
+  await until(
+    () =>
+      evaluate(
+        `document.querySelector('.project-folder-path')?.textContent === ${JSON.stringify(canonicalFolder)}`,
+      ),
+    'native folder selected',
+  )
+  assert.deepEqual(folderSelections.at(-1).properties, ['openDirectory'])
+  await inspectLayout('project-folder')
   await click('MCPs & Skills', '[role=tab]')
   await click('Recommend MCPs & Skills')
   await click('Apply recommendations')
@@ -345,6 +467,23 @@ async function run() {
   const saved = (await state()).projects[0]
   for (const [field, value] of Object.entries(project)) assert.equal(saved[field], value)
   assert.equal(saved.catalogIds.length, 1)
+  assert.equal(saved.folderPath, canonicalFolder)
+  await assert.rejects(
+    () =>
+      evaluate(
+        `window.mwide.workspace.createProject(${JSON.stringify({ ...project, name: 'Unapproved folder', catalogIds: [], folderPath: ungrantedFolder })})`,
+      ),
+    (error) => /folder picker/.test(error.cause?.message || error.message),
+  )
+  await assert.rejects(
+    () =>
+      evaluate(
+        `window.mwide.workspace.updateProject(${JSON.stringify({ ...saved, folderPath: ungrantedFolder })})`,
+      ),
+    (error) => /folder picker/.test(error.cause?.message || error.message),
+  )
+  assert.equal((await state()).projects.length, 1)
+  assert.equal((await state()).projects[0].folderPath, canonicalFolder)
   await inspectLayout('chat-empty')
   await click('New conversation')
   await until(
@@ -386,8 +525,28 @@ async function run() {
     'response completion',
   )
   await inspectLayout('chat')
+  const firstFolderContext = requests.at(-1).messages[0].content
+  assert.ok(firstFolderContext.includes('src/entry.ts'))
+  assert.ok(firstFolderContext.includes('initialProjectEntry'))
+  for (const excluded of [
+    '.env',
+    'must-never-reach-provider',
+    'node_modules',
+    'excludedDependency',
+    'ignored-private.ts',
+    'ignoredPrivateSymbol',
+  ])
+    assert.equal(
+      firstFolderContext.includes(excluded),
+      false,
+      `Excluded folder data reached AI: ${excluded}`,
+    )
   if (process.env.MWIDE_SCREENSHOT)
     await writeFile(process.env.MWIDE_SCREENSHOT, (await window.webContents.capturePage()).toPNG())
+  await writeFile(
+    join(selectedFolder, 'src', 'later.ts'),
+    'export function freshlyAddedEntry() { return true }\n',
+  )
   await evaluate(`document.querySelector('[aria-label="New conversation"]').click()`)
   await until(async () => (await state()).conversations.length === 2, 'cross-chat summary')
   await until(
@@ -405,6 +564,10 @@ async function run() {
     assert.ok(context.includes(project[field]))
   assert.ok(context.includes(summary))
   assert.ok(context.includes('Verify outcomes before committing.'))
+  assert.ok(context.includes('src/later.ts'))
+  assert.ok(context.includes('freshlyAddedEntry'))
+  assert.equal(context.includes('.env'), false)
+  assert.equal(await evaluate('document.body.textContent.includes("Optimize conversation")'), false)
   const firstTitle = (await state()).conversations[0].title
   const secondTitle = (await state()).conversations[1].title
   await click(firstTitle, '.conversation-item')
@@ -534,11 +697,104 @@ async function run() {
     () => evaluate('Boolean(document.querySelector(".composer-notice"))'),
     'missing AI model guidance',
   )
+  await until(
+    () =>
+      evaluate(
+        '[...document.querySelector("[aria-label=\\"AI model\\"]").options].some(item => item.value === "fixture-codex")',
+      ),
+    'Codex capability discovery',
+  )
+  await fill('[aria-label="AI model"]', 'fixture-codex')
+  await until(
+    () => evaluate('!document.querySelector("[aria-label=\\"Reasoning effort\\"]").disabled'),
+    'supported reasoning efforts',
+  )
+  assert.deepEqual(
+    await evaluate(
+      '[...document.querySelector("[aria-label=\\"Reasoning effort\\"]").options].map(item => item.value)',
+    ),
+    ['', 'low', 'medium', 'high'],
+  )
+  await fill('[aria-label="Reasoning effort"]', 'high')
+  await until(
+    async () => (await state()).settings.reasoningEffort === 'high',
+    'reasoning effort persisted',
+  )
+  await until(
+    () => evaluate('!document.querySelector("[aria-label=\\"AI model\\"]").disabled'),
+    'effort save complete',
+  )
+  await fill('[aria-label="AI model"]', 'fixture-codex-other')
+  await until(
+    async () =>
+      (await state()).settings.codexModel === 'fixture-codex-other' &&
+      (await state()).settings.reasoningEffort === undefined,
+    'model change restores default effort',
+  )
+  assert.deepEqual(
+    await evaluate(
+      '[...document.querySelector("[aria-label=\\"Reasoning effort\\"]").options].map(item => item.value)',
+    ),
+    ['', 'low'],
+  )
+  await until(
+    () => evaluate('!document.querySelector("[aria-label=\\"AI model\\"]").disabled'),
+    'model save complete',
+  )
+  await fill('[aria-label="AI model"]', 'fixture-codex')
+  await until(
+    () =>
+      evaluate('document.querySelector(".codex-usage")?.textContent.includes("5h: 72.5% left")'),
+    'Codex primary usage window',
+  )
+  assert.ok(
+    await evaluate('document.querySelector(".codex-usage").textContent.includes("7d: 89% left")'),
+  )
+  assert.equal(
+    await evaluate(
+      '[...document.querySelectorAll(".codex-usage-window > span")].every(item => /^resets /.test(item.textContent))',
+    ),
+    true,
+  )
+  await fill('[aria-label="Codex usage bucket"]', 'review')
+  await until(
+    () => evaluate('document.querySelector(".codex-usage")?.textContent.includes("1d: 25% left")'),
+    'additional usage bucket',
+  )
+  assert.equal(await evaluate('document.querySelectorAll(".codex-usage-window").length'), 1)
+  await fill('[aria-label="Codex usage bucket"]', 'codex')
+  await inspectLayout('codex-chat-controls')
+  codexUsageAvailable = false
+  const previousUsageReads = codexUsageReads
+  await click('Check AI')
+  await until(
+    () =>
+      evaluate(
+        'document.querySelector(".codex-usage")?.textContent.includes("Last known Codex limit")',
+      ),
+    'failed usage refresh marked stale',
+  )
+  assert.ok(codexUsageReads > previousUsageReads)
+  assert.ok(
+    await evaluate('document.querySelector(".codex-usage").textContent.includes("5h: 72.5% left")'),
+  )
+  assert.ok(
+    await evaluate(
+      'document.querySelector(".codex-usage").textContent.includes("Refresh unavailable · checked")',
+    ),
+  )
+  codexUsageAvailable = true
+  await click('Check AI')
+  await until(
+    () => evaluate('!document.querySelector(".codex-usage").classList.contains("is-stale")'),
+    'usage refresh recovers',
+  )
   await fill('[aria-label="AI provider"]', 'ollama')
   await until(
     () => evaluate(`document.querySelector('[aria-label="AI model"]').value === 'fixture:local'`),
     'inline provider selection retained model',
   )
+  assert.equal(await evaluate('Boolean(document.querySelector(".codex-usage"))'), false)
   await inspectLayout('direct-ai-chat')
   const mainWidthWithSidebar = await evaluate('document.querySelector(".main-panel").clientWidth')
   await evaluate('document.querySelector(".sidebar-toggle").click()')
@@ -589,15 +845,30 @@ async function run() {
   await inspectLayout('project-chat')
   await evaluate('document.querySelector(".workspace-menu > summary").click()')
   await inspectLayout('workspace-menu')
+  await click('Project context')
+  await click('Folder', '[role=tab]')
+  assert.equal(
+    await evaluate('document.querySelector(".project-folder-path").textContent'),
+    canonicalFolder,
+  )
+  await click('Remove folder')
+  await click('Save project context')
+  await until(
+    async () =>
+      (await state()).projects.find((item) => item.id === saved.id).folderPath === undefined,
+    'folder binding removed',
+  )
+  for (const [field, value] of Object.entries(project))
+    assert.equal((await state()).projects.find((item) => item.id === saved.id)[field], value)
   console.log(
-    `Desktop smoke passed: real preload/IPC, forms, catalog, recommendations, streams, cancellation, cross-chat context, reload, durable storage, monochrome theme, brand image, keyboard focus, native select, reduced motion and dynamic 1280x800/980x600/640x480/600x600 layouts without document scroll. Screenshots: ${screenshotDirectory}`,
+    `Desktop smoke passed: real preload/IPC, native folder grants, fresh folder maps and exclusions, automatic memory, fixture Codex effort/usage controls, forms, catalog, streams, cancellation, cross-chat context, reload, durable storage, monochrome theme, keyboard controls and dynamic 1280x800/980x600/640x480/600x600 layouts without document scroll. Screenshots: ${screenshotDirectory}`,
   )
 }
 
 setTimeout(() => {
-  console.error('Desktop smoke exceeded 60 seconds.')
+  console.error('Desktop smoke exceeded 90 seconds.')
   app.exit(1)
-}, 60000).unref()
+}, 90000).unref()
 run()
   .then(() => {
     server.closeAllConnections()

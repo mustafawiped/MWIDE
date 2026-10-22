@@ -5,6 +5,8 @@ const workspace: WorkspaceBridge = Object.freeze<WorkspaceBridge>({
   getState: () => ipcRenderer.invoke('mwide:request', 'getState'),
   saveSettings: (settings) => ipcRenderer.invoke('mwide:request', 'saveSettings', settings),
   inspectProvider: (id) => ipcRenderer.invoke('mwide:request', 'inspectProvider', id),
+  getCodexUsageLimits: () => ipcRenderer.invoke('mwide:request', 'getCodexUsageLimits'),
+  selectProjectFolder: () => ipcRenderer.invoke('mwide:request', 'selectProjectFolder'),
   signInCodex: () => ipcRenderer.invoke('mwide:request', 'signInCodex'),
   saveCatalogItem: (item) => ipcRenderer.invoke('mwide:request', 'saveCatalogItem', item),
   removeCatalogItem: (id) => ipcRenderer.invoke('mwide:request', 'removeCatalogItem', id),
@@ -16,7 +18,6 @@ const workspace: WorkspaceBridge = Object.freeze<WorkspaceBridge>({
   sendMessage: (input) => ipcRenderer.invoke('mwide:request', 'sendMessage', input),
   cancelMessage: (id) => ipcRenderer.invoke('mwide:request', 'cancelMessage', id),
   cancelOperation: () => ipcRenderer.invoke('mwide:request', 'cancelOperation'),
-  summarizeConversation: (id) => ipcRenderer.invoke('mwide:request', 'summarizeConversation', id),
   onChatEvent: (listener) => {
     const receive = (_event: Electron.IpcRendererEvent, event: ChatEvent): void => listener(event)
     ipcRenderer.on('mwide:chat', receive)

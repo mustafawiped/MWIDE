@@ -5,8 +5,9 @@ import type { WorkspaceController } from './useWorkspace'
 import { Icon, Textarea } from './ui'
 import { focusInvalidField } from './formValidation'
 import { CompactTabs } from './CompactTabs'
+import './chat-controls.css'
 
-type ProjectSection = 'brief' | 'rules' | 'architecture' | 'toolkit'
+type ProjectSection = 'brief' | 'folder' | 'rules' | 'architecture' | 'toolkit'
 const catalogPageSize = 2
 
 export function ProjectEditor({
@@ -48,6 +49,7 @@ export function ProjectEditor({
         next.description !== initial.description ||
         next.rules !== initial.rules ||
         next.architecture !== initial.architecture ||
+        (next.folderPath || '') !== (initial.folderPath || '') ||
         next.catalogIds.length !== initial.catalogIds.length ||
         next.catalogIds.some((id) => !initial.catalogIds.includes(id)),
     )
@@ -65,6 +67,10 @@ export function ProjectEditor({
         ? draft.catalogIds.filter((value) => value !== id)
         : [...draft.catalogIds, id],
     })
+  }
+  const chooseFolder = async () => {
+    const folderPath = await workspace.execute((bridge) => bridge.selectProjectFolder())
+    if (folderPath) updateDraft({ ...draft, folderPath })
   }
   const recommend = async () => {
     const items = await workspace.execute((bridge) => bridge.recommend(draft))
@@ -106,6 +112,7 @@ export function ProjectEditor({
         disabled={disabled}
         tabs={[
           { value: 'brief', label: 'Brief', invalid: Boolean(errors.name || errors.description) },
+          { value: 'folder', label: 'Folder' },
           { value: 'rules', label: 'Rules' },
           { value: 'architecture', label: 'Architecture' },
           { value: 'toolkit', label: 'MCPs & Skills' },
@@ -166,6 +173,47 @@ export function ProjectEditor({
                 </span>
               )}
             </label>
+          </div>
+        )}
+        {activeTab === 'folder' && (
+          <div
+            className="panel form-panel editor-section project-folder-panel"
+            id="project-panel-folder"
+            role="tabpanel"
+            aria-labelledby="project-tab-folder"
+          >
+            <div className="section-heading">
+              <h2>Project folder</h2>
+              <p>Give new conversations a current map of your codebase.</p>
+            </div>
+            <p className="project-folder-path" title={draft.folderPath || undefined}>
+              {draft.folderPath || 'No folder selected'}
+            </p>
+            <div className="project-folder-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => void chooseFolder()}
+              >
+                <Icon name="projects" size={15} />
+                {draft.folderPath ? 'Change folder' : 'Choose folder'}
+              </button>
+              {draft.folderPath && (
+                <button
+                  className="button ghost"
+                  type="button"
+                  onClick={() => updateDraft({ ...draft, folderPath: undefined })}
+                >
+                  Remove folder
+                </button>
+              )}
+            </div>
+            <p className="project-folder-description">
+              MWIDE refreshes the file hierarchy and source hints automatically for new chats and
+              replies, then shares that map with your selected AI. This provides orientation, not
+              complete file access. Dependencies, ignored files, and common secret files are
+              excluded.
+            </p>
           </div>
         )}
         {activeTab === 'rules' && (

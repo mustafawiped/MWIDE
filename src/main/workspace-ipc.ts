@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,7 +7,14 @@ import { WorkspaceService } from '../core/workspace.ts'
 import { CodexProvider } from '../providers/codex.ts'
 import { OllamaProvider, validateOllamaUrl } from '../providers/ollama.ts'
 import type { ChatEvent, Project, ProviderSettings } from '../shared/contracts.ts'
-import { isTrustedRendererUrl, isTrustedSignInUrl, requireId, requireRecord } from './ipc-policy.ts'
+import {
+  isTrustedRendererUrl,
+  isTrustedSignInUrl,
+  requireGrantedFolder,
+  requireId,
+  requireRecord,
+} from './ipc-policy.ts'
+import { canonicalProjectFolder, readProjectFolder } from './project-folder.ts'
 import { WorkspaceStore } from './workspace-store.ts'
 
 interface WorkspaceRuntime {
@@ -20,6 +27,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   let startupError: Error | undefined
   let codex: CodexProvider | undefined
   const ollamaProviders = new Map<string, OllamaProvider>()
+  const selectedFolders = new Set<string>()
   const directory = app.getPath('userData')
   const codexProfile = join(directory, 'codex-profile')
   const codexWorkspace = join(directory, 'codex-workspace')
@@ -52,7 +60,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   try {
     await mkdir(directory, { recursive: true })
     const store = await WorkspaceStore.open(join(directory, 'workspace.json'))
-    service = new WorkspaceService(store, resolveProvider, emit)
+    service = new WorkspaceService(store, resolveProvider, emit, readProjectFolder)
   } catch (error) {
     startupError = new Error(
       `The saved workspace could not be opened. Your files were preserved. ${error instanceof Error ? error.message : 'Check the application data folder and retry.'}`,
@@ -84,6 +92,21 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
         const state = await service.getState()
         return (input === 'codex' ? getCodex() : getOllama(state.settings.ollamaUrl)).inspect()
       }
+      case 'getCodexUsageLimits':
+        return getCodex().getUsageLimits()
+      case 'selectProjectFolder': {
+        const owner = BrowserWindow.fromWebContents(event.sender)
+        if (!owner) throw new Error('The project window is no longer available.')
+        const choice = await dialog.showOpenDialog(owner, {
+          title: 'Choose project folder',
+          properties: ['openDirectory'],
+          buttonLabel: 'Use project folder',
+        })
+        if (choice.canceled || !choice.filePaths[0]) return null
+        const folder = await canonicalProjectFolder(choice.filePaths[0])
+        selectedFolders.add(folder)
+        return folder
+      }
       case 'signInCodex': {
         const login = await getCodex().login()
         if (!isTrustedSignInUrl(login.url))
@@ -97,11 +120,30 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
         return service.removeCatalogItem(requireId(input))
       case 'recommend':
         return service.recommend(input)
-      case 'createProject':
+      case 'createProject': {
+        const state = await service.getState()
+        requireGrantedFolder(
+          input,
+          new Set([
+            ...selectedFolders,
+            ...state.projects.flatMap((project) =>
+              project.folderPath ? [project.folderPath] : [],
+            ),
+          ]),
+        )
         return service.createProject(input)
+      }
       case 'updateProject': {
         const project = requireRecord(input)
         requireId(project.id)
+        const state = await service.getState()
+        requireGrantedFolder(
+          input,
+          new Set([
+            ...selectedFolders,
+            ...state.projects.flatMap((item) => (item.folderPath ? [item.folderPath] : [])),
+          ]),
+        )
         return service.updateProject(project as unknown as Project)
       }
       case 'createConversation':
@@ -119,8 +161,6 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
         return service.cancelMessage(requireId(input))
       case 'cancelOperation':
         return service.cancelOperation()
-      case 'summarizeConversation':
-        return service.summarizeConversation(requireId(input))
       default:
         throw new Error('Unknown workspace operation.')
     }
@@ -133,6 +173,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
       codex?.dispose()
       for (const provider of ollamaProviders.values()) provider.dispose()
       ollamaProviders.clear()
+      selectedFolders.clear()
     },
   }
 }

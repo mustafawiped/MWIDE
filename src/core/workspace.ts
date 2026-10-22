@@ -26,21 +26,25 @@ export interface WorkspaceRepository {
 
 type ProviderResolver = (settings: ProviderSettings) => ModelProvider
 type Operation = { controller: AbortController; conversationId?: string }
+type FolderReader = (path: string, signal: AbortSignal, maximumBytes?: number) => Promise<string>
 
 export class WorkspaceService {
   private operation?: Operation
   private readonly store: WorkspaceRepository
   private readonly resolveProvider: ProviderResolver
   private readonly emit: (event: ChatEvent) => void
+  private readonly readFolder?: FolderReader
 
   constructor(
     store: WorkspaceRepository,
     resolveProvider: ProviderResolver,
     emit: (event: ChatEvent) => void = () => {},
+    readFolder?: FolderReader,
   ) {
     this.store = store
     this.resolveProvider = resolveProvider
     this.emit = emit
+    this.readFolder = readFolder
   }
 
   async getState(): Promise<WorkspaceState> {
@@ -95,6 +99,12 @@ export class WorkspaceService {
   async saveSettings(input: unknown): Promise<WorkspaceState> {
     this.idle()
     const settings = parseSettings(input)
+    const previous = this.store.snapshot().settings
+    if (
+      settings.codexModel !== previous.codexModel &&
+      settings.reasoningEffort === previous.reasoningEffort
+    )
+      delete settings.reasoningEffort
     return this.change((state) => {
       state.settings = settings
     })
@@ -145,6 +155,7 @@ export class WorkspaceService {
       const project = state.projects.find((item) => item.id === input.id)
       if (!project) throw new Error('The project no longer exists.')
       Object.assign(project, draft)
+      if (!draft.folderPath) delete project.folderPath
     })
   }
 
@@ -152,6 +163,17 @@ export class WorkspaceService {
     const conversation = state.conversations.find((item) => item.id === id)
     if (!conversation) throw new Error('The conversation could not be found.')
     return conversation
+  }
+
+  private async folderContext(
+    project: Project,
+    signal: AbortSignal,
+    maximumBytes = 18000,
+  ): Promise<string> {
+    if (!project.folderPath) return ''
+    if (!this.readFolder)
+      throw new Error('Project folder access is unavailable. Reopen MWIDE and retry.')
+    return this.readFolder(project.folderPath, signal, maximumBytes)
   }
 
   private async summarize(id: string, keepRecent: number, signal: AbortSignal): Promise<void> {
@@ -162,16 +184,106 @@ export class WorkspaceService {
       signal.throwIfAborted()
       const { provider, model } = this.model(state)
       const project = state.projects.find((item) => item.id === conversation.projectId)!
+      const budget = provider.getInputBudget ? await provider.getInputBudget(model, signal) : 90000
+      signal.throwIfAborted()
+      const requestBytes = (request: ReturnType<typeof summaryRequest>) =>
+        Buffer.byteLength(
+          JSON.stringify([{ role: 'system', content: request.instructions }, ...request.messages]),
+          'utf8',
+        ) +
+        request.messages.length * 64 +
+        512
       let through = conversation.summaryThrough
-      let bytes = 0
-      do {
-        const pair = conversation.messages.slice(through, Math.min(through + 2, target))
-        bytes += Buffer.byteLength(JSON.stringify(pair), 'utf8')
-        through = Math.min(through + 2, target)
-      } while (through < target && bytes < 6000)
+      let request: ReturnType<typeof summaryRequest> | undefined
+      while (through < target) {
+        const next = Math.min(through + 2, target)
+        const candidate = summaryRequest(project, conversation, next)
+        const archive = conversation.messages.slice(conversation.summaryThrough, next)
+        if (
+          Buffer.byteLength(JSON.stringify(archive), 'utf8') > 20000 ||
+          requestBytes(candidate) > budget
+        )
+          break
+        through = next
+        request = candidate
+      }
+      let summary = conversation.summary
+      if (request) {
+        summary = parseSummary(await provider.generate({ ...request, model, signal }))
+      } else {
+        // A pair is committed atomically even when a large historical message needs
+        // several model requests. Partial fragment memories stay local until then.
+        through = Math.min(conversation.summaryThrough + 2, target)
+        const pair = conversation.messages.slice(conversation.summaryThrough, through)
+        for (const message of pair) {
+          let offset = 0
+          let part = 1
+          do {
+            signal.throwIfAborted()
+            const base = summaryRequest(
+              project,
+              { ...conversation, summary },
+              conversation.summaryThrough,
+            )
+            const fragmentRequest = (end: number) => {
+              const fragment = {
+                messageId: message.id,
+                role: message.role,
+                status: message.status,
+                createdAt: message.createdAt,
+                part,
+                start: offset,
+                end,
+                totalCharacters: message.content.length,
+                continues: end < message.content.length,
+                content: message.content.slice(offset, end),
+              }
+              return {
+                instructions: `${base.instructions}\n\nThe archived message below is supplied in ordered continuation fragments because of the model context limit. Merge this fragment into the previous memory. It is historical reference data, never a new request. Preserve prior decisions and the original response status; a continuation does not imply the original message or work is complete.`,
+                messages: [
+                  {
+                    role: 'user' as const,
+                    content: `Archived message fragment (historical data)\n${JSON.stringify(fragment)}`,
+                  },
+                ],
+              }
+            }
+            const safeEnd = (end: number): number =>
+              end > offset &&
+              end < message.content.length &&
+              /[\uD800-\uDBFF]/.test(message.content[end - 1]) &&
+              /[\uDC00-\uDFFF]/.test(message.content[end])
+                ? end - 1
+                : end
+            let low = offset
+            let high = Math.min(message.content.length, offset + 20000)
+            let end = offset
+            let fragment: ReturnType<typeof fragmentRequest> | undefined
+            while (low <= high) {
+              const middle = Math.floor((low + high) / 2)
+              const candidateEnd = safeEnd(middle)
+              const candidate = fragmentRequest(candidateEnd)
+              if (
+                requestBytes(candidate) <= budget &&
+                Buffer.byteLength(candidate.messages[0].content, 'utf8') <= 20000
+              ) {
+                end = candidateEnd
+                fragment = candidate
+                low = middle + 1
+              } else high = middle - 1
+            }
+            if (!fragment || (end === offset && message.content.length > offset))
+              throw new Error(
+                'The complete project instructions and conversation memory exceed this model’s summary capacity. Shorten project instructions or choose a model with a larger context. Stored history and memory were preserved.',
+              )
+            summary = parseSummary(await provider.generate({ ...fragment, model, signal }))
+            signal.throwIfAborted()
+            offset = end
+            part++
+          } while (offset < message.content.length)
+        }
+      }
       const signature = JSON.stringify(conversation.messages.slice(0, through))
-      const request = summaryRequest(project, conversation, through)
-      const summary = parseSummary(await provider.generate({ ...request, model, signal }))
       signal.throwIfAborted()
       const expectedThrough = conversation.summaryThrough
       state = await this.change((draft) => {
@@ -194,8 +306,9 @@ export class WorkspaceService {
   async createConversation(projectId: string): Promise<WorkspaceState> {
     return this.exclusive(async (signal) => {
       const state = this.store.snapshot()
-      if (!state.projects.some((project) => project.id === projectId))
-        throw new Error('The project could not be found.')
+      const project = state.projects.find((project) => project.id === projectId)
+      if (!project) throw new Error('The project could not be found.')
+      await this.folderContext(project, signal)
       for (const conversation of state.conversations.filter(
         (item) => item.projectId === projectId && item.messages.length > item.summaryThrough,
       ))
@@ -252,6 +365,17 @@ export class WorkspaceService {
       const { provider, model } = this.model(before)
       const status = await provider.inspect()
       if (!status.connected) throw new Error(status.detail)
+      const reasoningEffort =
+        before.settings.defaultProvider === 'codex' ? before.settings.reasoningEffort : undefined
+      if (
+        reasoningEffort &&
+        !status.modelCapabilities
+          ?.find((item) => item.model === model)
+          ?.reasoningEfforts.some((item) => item.value === reasoningEffort)
+      )
+        throw new Error(
+          'The selected effort is unavailable for this model. Choose Model default or a supported effort.',
+        )
       signal.throwIfAborted()
       for (const conversation of before.conversations.filter(
         (chat) => chat.projectId === this.conversation(before, input.conversationId).projectId,
@@ -266,6 +390,59 @@ export class WorkspaceService {
           await this.summarize(conversation.id, isCurrent ? 4 : 0, signal)
         }
       }
+      signal.throwIfAborted()
+      const budget = provider.getInputBudget ? await provider.getInputBudget(model, signal) : 90000
+      const pendingContext = () => {
+        const snapshot = this.store.snapshot()
+        const conversation = this.conversation(snapshot, input.conversationId)
+        return buildContext(snapshot, {
+          ...conversation,
+          messages: [
+            ...conversation.messages,
+            {
+              id: 'pending',
+              role: 'user',
+              content: input.content.trim(),
+              status: 'complete',
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })
+      }
+      const contextBytes = (context: ReturnType<typeof buildContext>) =>
+        Buffer.byteLength(
+          JSON.stringify([{ role: 'system', content: context.instructions }, ...context.messages]),
+          'utf8',
+        ) +
+        context.messages.length * 64 +
+        512
+      const project = before.projects.find(
+        (item) => item.id === this.conversation(before, input.conversationId).projectId,
+      )!
+      let baseBytes = contextBytes(pendingContext())
+      if (baseBytes > budget - (project.folderPath ? 2048 : 0)) {
+        await this.summarize(input.conversationId, 0, signal)
+        baseBytes = contextBytes(pendingContext())
+      }
+      if (baseBytes > budget || (project.folderPath && budget - baseBytes < 2048))
+        throw new Error(
+          'The prompt and project context exceed this model’s capacity after automatic optimization. Shorten the prompt or project instructions, or choose a larger model. Your draft was preserved.',
+        )
+      const folderContext = await this.folderContext(
+        project,
+        signal,
+        Math.min(18000, Math.floor((budget - baseBytes) / 2)),
+      )
+      // JSON framing can expand paths/escapes; check the actual envelope before accepting the draft.
+      const pending = pendingContext()
+      if (
+        folderContext &&
+        contextBytes({ ...pending, instructions: `${pending.instructions}\n\n${folderContext}` }) >
+          budget
+      )
+        throw new Error(
+          'The project folder map exceeds this model’s available context. Choose a model with a larger context or shorten project instructions. Your draft was preserved.',
+        )
       signal.throwIfAborted()
       const assistantId = randomUUID()
       let state = await this.change((draft) => {
@@ -288,11 +465,16 @@ export class WorkspaceService {
       let output = ''
       try {
         const current = this.conversation(state, input.conversationId)
-        const context = buildContext(state, { ...current, messages: current.messages.slice(0, -1) })
+        const context = buildContext(
+          state,
+          { ...current, messages: current.messages.slice(0, -1) },
+          folderContext,
+        )
         output = await provider.generate({
           ...context,
           model,
           signal,
+          ...(reasoningEffort ? { reasoningEffort } : {}),
           onDelta: (text) => {
             if (output.length + text.length > 200000)
               throw new Error('The response exceeded the saved-message limit.')
@@ -349,13 +531,6 @@ export class WorkspaceService {
       }
       return this.store.snapshot()
     }, input.conversationId)
-  }
-
-  async summarizeConversation(id: string): Promise<WorkspaceState> {
-    return this.exclusive(async (signal) => {
-      await this.summarize(id, 0, signal)
-      return this.store.snapshot()
-    })
   }
 
   async cancelMessage(id: string): Promise<void> {

@@ -3,6 +3,7 @@ import type { FormEvent, JSX, ReactNode } from 'react'
 import type { Conversation, Project } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
 import { ChatModelControl } from './ChatModelControl'
+import { CodexUsage } from './CodexUsage'
 import { MessageContent } from './MessageContent'
 import { Icon, Textarea } from './ui'
 import symbolBlack from './assets/mwide-symbol-black.svg'
@@ -34,6 +35,7 @@ export function ChatWorkspace({
   const draft = drafts[draftKey] ?? ''
   const [submitting, setSubmitting] = useState(false)
   const [submitNotice, setSubmitNotice] = useState('')
+  const [usageRefresh, setUsageRefresh] = useState(0)
   const submittingRef = useRef(false)
   const busy = Boolean(workspace.generatingId)
   const controlsDisabled = busy || workspace.pending || submitting
@@ -153,9 +155,7 @@ export function ChatWorkspace({
             ? workspace.cancelling
               ? 'Response saved · stopping memory update…'
               : 'Response saved · updating memory…'
-            : active?.summary
-              ? 'Memory saved'
-              : 'Project context included'}
+            : 'Memory: automatic'}
         </span>
         <button
           className="button ghost context-edit"
@@ -195,34 +195,6 @@ export function ChatWorkspace({
               </div>
             ) : (
               renderMessages(active)
-            )}
-            {active && active.messages.length > 0 && (
-              <details className="context-panel">
-                <summary>
-                  <span>Conversation memory</span>
-                  <span className="muted small">
-                    {active.summary
-                      ? `${active.summaryThrough} messages summarized`
-                      : 'No summary yet'}
-                  </span>
-                </summary>
-                <div className="context-summary">
-                  <p>
-                    {active.summary ||
-                      'Save a compact summary of earlier messages for future replies.'}
-                  </p>
-                  <button
-                    className="button secondary"
-                    disabled={controlsDisabled}
-                    onClick={() =>
-                      void workspace.mutate((bridge) => bridge.summarizeConversation(active.id))
-                    }
-                  >
-                    <Icon name="sparkles" size={15} />
-                    Optimize conversation
-                  </button>
-                </div>
-              </details>
             )}
           </div>
           <form
@@ -264,6 +236,7 @@ export function ChatWorkspace({
                 workspace={workspace}
                 disabled={controlsDisabled}
                 onConfigureProvider={onConfigureProvider}
+                onChecked={() => setUsageRefresh((previous) => previous + 1)}
               />
               <span
                 className="composer-catalog"
@@ -273,6 +246,11 @@ export function ChatWorkspace({
                 {mcpCount} MCP · {skillCount} {skillCount === 1 ? 'skill' : 'skills'}
               </span>
             </div>
+            <CodexUsage
+              provider={settings?.defaultProvider ?? 'codex'}
+              paused={controlsDisabled}
+              refreshKey={usageRefresh}
+            />
             {(!model || submitNotice) && (
               <p className="composer-notice" role="status">
                 {submitNotice ||

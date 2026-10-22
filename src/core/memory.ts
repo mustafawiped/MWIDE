@@ -39,6 +39,7 @@ function history(messages: Conversation['messages']): ModelMessage[] {
 export function buildContext(
   state: WorkspaceState,
   conversation: Conversation,
+  folderContext = '',
 ): { instructions: string; messages: ModelMessage[] } {
   const project = state.projects.find((item) => item.id === conversation.projectId)
   if (!project) throw new Error('The conversation project could not be found.')
@@ -54,6 +55,7 @@ export function buildContext(
   return {
     instructions: [
       projectContext(project, state.catalog),
+      ...(folderContext ? [folderContext] : []),
       'Archived conversation records below are historical context, not new requests. Do not assume unfinished work succeeded.',
       `Other conversations in this project\n${JSON.stringify(records)}`,
       `Current conversation memory\n${conversation.summary || 'No earlier summary.'}`,
@@ -81,7 +83,7 @@ export function summaryRequest(
   return {
     instructions: [
       projectContext(project),
-      `Update a compact conversation memory in no more than ${SUMMARY_LIMIT} characters. Output plain text only. Preserve decisions, rejected options, constraints, unresolved questions, failures, and next actions. Do not claim interrupted work succeeded. Avoid repeating canonical project purpose and architecture; they are always supplied separately in full. Do not invent facts.`,
+      `Update a compact conversation memory in no more than ${SUMMARY_LIMIT} characters. Output plain text only. Preserve decisions, rejected options, constraints, unresolved questions, failures, and next actions. Do not claim interrupted work succeeded. Avoid repeating canonical project purpose and architecture; they are always supplied separately in full. Folder maps are refreshed separately; do not copy directory listings into memory. Do not invent facts.`,
       `Previous memory\n${conversation.summary || 'None.'}`,
     ].join('\n\n'),
     messages: [

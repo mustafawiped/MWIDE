@@ -2,6 +2,7 @@ import type {
   CatalogItem,
   ProjectDraft,
   ProviderSettings,
+  ReasoningEffort,
   WorkspaceState,
 } from '../shared/contracts.ts'
 
@@ -68,13 +69,20 @@ export function parseProjectDraft(value: unknown): ProjectDraft {
   if (new Set(catalogIds).size !== catalogIds.length) {
     throw new Error('Project catalog IDs must be unique.')
   }
-  return {
+  const draft: ProjectDraft = {
     name: text(input.name, 'Project name', 120, true),
     description: text(input.description, 'Project description', 20_000, true),
     rules: text(input.rules, 'Project rules', 12_000),
     architecture: text(input.architecture, 'Project architecture notes', 20_000),
     catalogIds,
   }
+  if (input.folderPath !== undefined) {
+    const folder = text(input.folderPath, 'Project folder', 4096)
+    if ([...folder].some((character) => character.charCodeAt(0) < 32))
+      throw new Error('Project folder contains invalid characters.')
+    draft.folderPath = folder
+  }
+  return draft
 }
 
 export function parseCatalogItem(value: unknown): Omit<CatalogItem, 'id'> & { id?: string } {
@@ -122,12 +130,18 @@ export function parseSettings(value: unknown): ProviderSettings {
       'Ollama URL must use local HTTP (localhost, 127.0.0.1, or ::1), without a path, credentials, query, or fragment.',
     )
   }
-  return {
+  const settings: ProviderSettings = {
     defaultProvider: input.defaultProvider,
     codexModel: text(input.codexModel, 'Codex model', 200),
     ollamaUrl,
     ollamaModel: text(input.ollamaModel, 'Ollama model', 200),
   }
+  if (input.reasoningEffort !== undefined) {
+    const supported: unknown[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+    if (!supported.includes(input.reasoningEffort)) throw new Error('Unknown reasoning effort.')
+    settings.reasoningEffort = input.reasoningEffort as ReasoningEffort
+  }
+  return settings
 }
 
 export function assertWorkspaceState(value: unknown): asserts value is WorkspaceState {

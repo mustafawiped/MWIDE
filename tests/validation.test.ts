@@ -10,6 +10,31 @@ import {
 import type { WorkspaceState } from '../src/shared/contracts.ts'
 
 const timestamp = '2026-10-22T12:00:00.000Z'
+
+test('optional folder and effort preserve older workspaces and reject malformed values', () => {
+  const state = initialState()
+  assert.equal(parseSettings(state.settings).reasoningEffort, undefined)
+  assert.equal(
+    parseSettings({ ...state.settings, reasoningEffort: 'high' }).reasoningEffort,
+    'high',
+  )
+  for (const reasoningEffort of ['ultra', '', null, 2])
+    assert.throws(() => parseSettings({ ...state.settings, reasoningEffort }), /effort/)
+  const project = {
+    name: 'Folder',
+    description: 'Purpose',
+    rules: '',
+    architecture: '',
+    catalogIds: [],
+  }
+  assert.equal(parseProjectDraft(project).folderPath, undefined)
+  assert.equal(
+    parseProjectDraft({ ...project, folderPath: 'C:\\Projects\\Example' }).folderPath,
+    'C:\\Projects\\Example',
+  )
+  for (const folderPath of [null, 2, 'x'.repeat(4097), 'bad\u0000path'])
+    assert.throws(() => parseProjectDraft({ ...project, folderPath }))
+})
 function validState(): WorkspaceState {
   const state = initialState()
   state.catalog.push({

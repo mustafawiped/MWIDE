@@ -1,11 +1,37 @@
 export type ProviderId = 'codex' | 'ollama'
 export type CatalogKind = 'mcp' | 'skill'
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export interface ModelCapabilities {
+  model: string
+  defaultReasoningEffort?: ReasoningEffort
+  reasoningEfforts: { value: ReasoningEffort; description: string }[]
+}
+
+export interface UsageLimitWindow {
+  remainingPercent: number
+  windowDurationMins: number | null
+  resetsAt: number | null
+}
+
+export interface CodexUsageLimits {
+  available: boolean
+  detail: string
+  checkedAt: string
+  buckets: {
+    id: string
+    name: string
+    primary: UsageLimitWindow | null
+    secondary: UsageLimitWindow | null
+  }[]
+}
 
 export interface ProviderSettings {
   defaultProvider: ProviderId
   codexModel: string
   ollamaUrl: string
   ollamaModel: string
+  reasoningEffort?: ReasoningEffort
 }
 
 export interface ProviderStatus {
@@ -13,6 +39,7 @@ export interface ProviderStatus {
   connected: boolean
   detail: string
   models: string[]
+  modelCapabilities?: ModelCapabilities[]
 }
 
 export interface CatalogItem {
@@ -29,6 +56,7 @@ export interface ProjectDraft {
   rules: string
   architecture: string
   catalogIds: string[]
+  folderPath?: string
 }
 
 export interface Project extends ProjectDraft {
@@ -75,6 +103,8 @@ export interface WorkspaceBridge {
   getState(): Promise<WorkspaceState>
   saveSettings(settings: ProviderSettings): Promise<WorkspaceState>
   inspectProvider(id: ProviderId): Promise<ProviderStatus>
+  getCodexUsageLimits(): Promise<CodexUsageLimits>
+  selectProjectFolder(): Promise<string | null>
   signInCodex(): Promise<{ message: string }>
   saveCatalogItem(item: Omit<CatalogItem, 'id'> & { id?: string }): Promise<WorkspaceState>
   removeCatalogItem(id: string): Promise<WorkspaceState>
@@ -85,7 +115,6 @@ export interface WorkspaceBridge {
   sendMessage(input: { conversationId: string; content: string }): Promise<WorkspaceState>
   cancelMessage(conversationId: string): Promise<void>
   cancelOperation(): Promise<void>
-  summarizeConversation(conversationId: string): Promise<WorkspaceState>
   onChatEvent(listener: (event: ChatEvent) => void): () => void
 }
 

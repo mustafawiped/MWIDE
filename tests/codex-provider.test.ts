@@ -13,6 +13,11 @@ interface Scenario {
   policy?: 'mcp' | 'plugin' | 'tools'
   loginUrl?: string
   behavior?: 'success' | 'failed' | 'empty' | 'stall' | 'tool' | 'invalid' | 'exit' | 'rpc-error'
+  models?: unknown
+  usageLimits?: unknown
+  usageFailure?: boolean
+  finishAfterUsage?: boolean
+  finishAfterModelRead?: boolean
 }
 
 // A real, separate process exercises JSONL framing, request ordering, early
@@ -40,7 +45,17 @@ readline.createInterface({input: process.stdin}).on('line', line => {
       return reply({config});
     }
     case 'account/read': return reply({account: scenario.account === 'signed-out' ? null : {type:scenario.account || 'chatgpt', planType:'test'}});
-    case 'model/list': return reply(message.params.cursor ? {data:[{model:'default',isDefault:true},{model:'other'},{model:'hidden',hidden:true}],nextCursor:null} : {data:[{model:'other'}],nextCursor:'page2'});
+    case 'model/list': {
+      reply(Object.hasOwn(scenario,'models') ? {data:scenario.models,nextCursor:null} : message.params.cursor ? {data:[{model:'default',isDefault:true},{model:'other'},{model:'hidden',hidden:true}],nextCursor:null} : {data:[{model:'other'}],nextCursor:'page2'});
+      if (scenario.finishAfterModelRead) setTimeout(() => event('turn/completed',{threadId:'thread-1',turn:{id:'turn-1',status:'completed'}}),50);
+      return;
+    }
+    case 'account/rateLimits/read': {
+      if (scenario.usageFailure) send({id:message.id,error:{code:-1,message:'Usage unavailable'}});
+      else reply(Object.hasOwn(scenario,'usageLimits') ? scenario.usageLimits : {rateLimits:{primary:{usedPercent:25,windowDurationMins:300,resetsAt:1800000000},secondary:null}});
+      if (scenario.finishAfterUsage) setTimeout(() => event('turn/completed',{threadId:'thread-1',turn:{id:'turn-1',status:'completed'}}),50);
+      return;
+    }
     case 'account/login/start': return reply({type:'chatgpt',loginId:'login-1',authUrl:scenario.loginUrl || 'https://auth.openai.com/authorize?state=test'});
     case 'account/login/cancel': return reply({status:'canceled'});
     case 'thread/start': return reply({thread:{id:'thread-1'}});
@@ -175,6 +190,206 @@ test('Codex uses a private profile, explicit tool restrictions, no shell and no 
 test('Codex discovers paginated ChatGPT models with default first and no duplicates', async (t) => {
   const { provider } = await fixture(t)
   assert.deepEqual((await provider.inspect()).models, ['default', 'other'])
+})
+
+test('Codex reports only valid model-dependent reasoning efforts and sends the selected effort', async (t) => {
+  const { provider, requests } = await fixture(t, {
+    models: [
+      {
+        model: 'default',
+        isDefault: true,
+        defaultReasoningEffort: 'medium',
+        supportedReasoningEfforts: [
+          { reasoningEffort: 'medium', description: 'Balanced\u0000 effort' },
+          { reasoningEffort: 'high', description: 'More reasoning' },
+          { reasoningEffort: 'high', description: 'Duplicate' },
+          { reasoningEffort: 'future-value', description: 'Unknown' },
+          null,
+        ],
+      },
+      { model: 'hidden', hidden: true, supportedReasoningEfforts: [{ reasoningEffort: 'max' }] },
+      { model: 'legacy' },
+      null,
+    ],
+  })
+  assert.deepEqual((await provider.inspect()).modelCapabilities, [
+    {
+      model: 'default',
+      defaultReasoningEffort: 'medium',
+      reasoningEfforts: [
+        { value: 'medium', description: 'Balanced effort' },
+        { value: 'high', description: 'More reasoning' },
+      ],
+    },
+    { model: 'legacy', reasoningEfforts: [] },
+  ])
+  assert.equal(await provider.generate(generation({ reasoningEffort: 'high' })), 'Hello 🌍')
+  assert.equal(
+    (await requests()).find((item) => item.method === 'turn/start')?.params?.effort,
+    'high',
+  )
+})
+
+test('Codex refuses unsupported effort before creating a thread and leaves Auto compatible', async (t) => {
+  const context = await fixture(t, {
+    models: [
+      {
+        model: 'default',
+        supportedReasoningEfforts: [{ reasoningEffort: 'low', description: '' }],
+      },
+    ],
+  })
+  await assert.rejects(
+    context.provider.generate(generation({ reasoningEffort: 'max' })),
+    /does not support/,
+  )
+  assert.equal(
+    (await context.requests()).some((item) => item.method === 'thread/start'),
+    false,
+  )
+  assert.equal(await context.provider.generate(generation()), 'Hello 🌍')
+  assert.equal(
+    Object.hasOwn(
+      (await context.requests()).find((item) => item.method === 'turn/start')!.params!,
+      'effort',
+    ),
+    false,
+  )
+})
+
+test('Codex usage reads prefer account buckets and retain separate windows with honest null metadata', async (t) => {
+  const { provider, requests } = await fixture(t, {
+    usageLimits: {
+      rateLimits: { primary: { usedPercent: 99 }, secondary: null },
+      rateLimitsByLimitId: {
+        codex: {
+          limitId: 'codex',
+          limitName: 'Codex',
+          primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 1800000000 },
+          secondary: { usedPercent: 100, windowDurationMins: 10080, resetsAt: null },
+        },
+        other: {
+          limitId: null,
+          limitName: null,
+          primary: { usedPercent: -10, windowDurationMins: null, resetsAt: null },
+          secondary: { usedPercent: 120, windowDurationMins: 'bad', resetsAt: -1 },
+        },
+      },
+    },
+  })
+  const [limits, sameRead] = await Promise.all([
+    provider.getUsageLimits(),
+    provider.getUsageLimits(),
+  ])
+  assert.deepEqual(limits, sameRead)
+  assert.equal(limits.available, true)
+  assert.ok(Number.isFinite(Date.parse(limits.checkedAt)))
+  assert.deepEqual(limits.buckets, [
+    {
+      id: 'codex',
+      name: 'Codex',
+      primary: { remainingPercent: 75, windowDurationMins: 300, resetsAt: 1800000000 },
+      secondary: { remainingPercent: 0, windowDurationMins: 10080, resetsAt: null },
+    },
+    {
+      id: 'other',
+      name: 'other',
+      primary: { remainingPercent: 100, windowDurationMins: null, resetsAt: null },
+      secondary: { remainingPercent: 0, windowDurationMins: null, resetsAt: null },
+    },
+  ])
+  assert.equal(
+    (await requests()).filter((item) => item.method === 'account/rateLimits/read').length,
+    1,
+  )
+  assert.equal(
+    (await requests()).some((item) => /reset|purchase|login/.test(item.method)),
+    false,
+  )
+})
+
+test('Codex usage supports legacy snapshots and discards malformed or missing windows', async (t) => {
+  const { provider } = await fixture(t, {
+    usageLimits: {
+      rateLimitsByLimitId: { broken: { primary: { usedPercent: '75' } } },
+      rateLimits: {
+        limitId: 'codex',
+        limitName: ' Account\u0000 limit ',
+        primary: { usedPercent: 42.5, windowDurationMins: null, resetsAt: 999999999999999 },
+        secondary: null,
+      },
+    },
+  })
+  assert.deepEqual((await provider.getUsageLimits()).buckets, [
+    {
+      id: 'codex',
+      name: 'Account limit',
+      primary: { remainingPercent: 57.5, windowDurationMins: null, resetsAt: null },
+      secondary: null,
+    },
+  ])
+  for (const usageLimits of [null, {}, { rateLimits: { primary: { usedPercent: null } } }]) {
+    await t.test(JSON.stringify(usageLimits), async (subtest) => {
+      const context = await fixture(subtest, { usageLimits })
+      const unavailable = await context.provider.getUsageLimits()
+      assert.equal(unavailable.available, false)
+      assert.deepEqual(unavailable.buckets, [])
+      assert.match(unavailable.detail, /unavailable/)
+    })
+  }
+})
+
+test('Codex usage requires its own ChatGPT sign-in and a read failure never interrupts generation', async (t) => {
+  for (const account of ['signed-out', 'apiKey'] as const) {
+    await t.test(account, async (subtest) => {
+      const { provider, requests } = await fixture(subtest, { account })
+      const limits = await provider.getUsageLimits()
+      assert.equal(limits.available, false)
+      assert.match(limits.detail, /Sign in with ChatGPT in MWIDE/)
+      assert.equal(
+        (await requests()).some((item) => item.method === 'account/rateLimits/read'),
+        false,
+      )
+    })
+  }
+  const { provider } = await fixture(t, {
+    behavior: 'stall',
+    usageFailure: true,
+    finishAfterUsage: true,
+  })
+  let usage: ReturnType<typeof provider.getUsageLimits> | undefined
+  assert.equal(
+    await provider.generate(
+      generation({
+        onDelta: () => {
+          usage = provider.getUsageLimits()
+        },
+      }),
+    ),
+    'Hello 🌍',
+  )
+  assert.equal((await usage)!.available, false)
+})
+
+test('Codex model inspection failure does not close an active generation', async (t) => {
+  const { provider } = await fixture(t, {
+    behavior: 'stall',
+    models: {},
+    finishAfterModelRead: true,
+  })
+  let inspection: ReturnType<typeof provider.inspect> | undefined
+  assert.equal(
+    await provider.generate(
+      generation({
+        onDelta: () => {
+          inspection = provider.inspect()
+        },
+      }),
+    ),
+    'Hello 🌍',
+  )
+  assert.equal((await inspection)!.connected, false)
+  assert.match((await inspection)!.detail, /invalid model catalog/)
 })
 
 test('Codex disposal during async startup never spawns a process and is terminal', async (t) => {

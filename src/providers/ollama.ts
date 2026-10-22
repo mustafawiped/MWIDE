@@ -79,6 +79,12 @@ export class OllamaProvider implements ModelProvider {
     }
   }
 
+  async getInputBudget(model: string, signal: AbortSignal): Promise<number> {
+    const info = await this.modelInfo(model, signal)
+    if (!info.contextLength) throw new Error('Ollama did not report a usable model context length.')
+    return Math.max(0, Math.min(info.contextLength, 32_768) - 2_048 - 512 - info.templateBytes)
+  }
+
   async generate(request: GenerationRequest): Promise<string> {
     validateGeneration(request)
     const info = await this.modelInfo(request.model, request.signal)
@@ -96,7 +102,7 @@ export class OllamaProvider implements ModelProvider {
       Buffer.byteLength(JSON.stringify(messages)) + info.templateBytes + messages.length * 64
     if (inputBudget > maximumContext - 2_048 - 512) {
       throw new Error(
-        'This conversation exceeds the local model context budget. Summarize the conversation or choose a larger model context; project instructions and history were not truncated.',
+        'This request exceeds the local model context budget after automatic memory optimization. Shorten the prompt or project instructions, or choose a model with a larger context. Canonical project fields were preserved.',
       )
     }
     // Start with the smallest sufficient context. Allocating the model maximum

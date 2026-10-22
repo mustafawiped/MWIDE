@@ -178,8 +178,21 @@ test('Ollama refuses context overflow without truncating or issuing a chat reque
   )
   await assert.rejects(
     provider.generate(generation({ instructions: 'Purpose and architecture. '.repeat(150) })),
-    /context budget.*not truncated/,
+    /context budget/,
   )
+  assert.deepEqual(
+    requests.map((request) => request.path),
+    ['/api/show'],
+  )
+})
+
+test('Ollama exposes a conservative input budget including template and output headroom', async (t) => {
+  const { provider, requests } = await fixture(t, (_request, response) =>
+    metadata(response, { model_info: { 'test.context_length': 8192 }, template: 'ü'.repeat(100) }),
+  )
+  const signal = new AbortController().signal
+  assert.equal(await provider.getInputBudget('test:local', signal), 8192 - 2048 - 512 - 200)
+  assert.equal(await provider.getInputBudget('test:local', signal), 8192 - 2048 - 512 - 200)
   assert.deepEqual(
     requests.map((request) => request.path),
     ['/api/show'],

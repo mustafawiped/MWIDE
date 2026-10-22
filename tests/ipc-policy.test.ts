@@ -5,6 +5,7 @@ import {
   isTrustedSignInUrl,
   requireId,
   requireRecord,
+  requireGrantedFolder,
 } from '../src/main/ipc-policy.ts'
 
 test('only the exact renderer document may call workspace operations; hashes are allowed', () => {
@@ -22,6 +23,21 @@ test('only the exact renderer document may call workspace operations; hashes are
   assert.equal(isTrustedRendererUrl('http://localhost:5173/foreign', development), false)
   assert.equal(isTrustedRendererUrl('http://localhost:5174/', development), false)
   assert.equal(isTrustedRendererUrl('http://127.0.0.1:5173/', development), false)
+})
+
+test('renderer can bind only folders granted by the native picker or a saved project', () => {
+  const allowed = new Set(['C:\\Projects\\Selected'])
+  requireGrantedFolder({}, allowed)
+  requireGrantedFolder({ folderPath: '' }, allowed)
+  requireGrantedFolder({ folderPath: 'C:\\Projects\\Selected' }, allowed)
+  for (const folderPath of [
+    'C:\\Users\\private',
+    'C:\\Projects\\Selected\\..\\private',
+    null,
+    3,
+    {},
+  ])
+    assert.throws(() => requireGrantedFolder({ folderPath }, allowed), /folder picker/)
 })
 
 test('sign-in opens only the supported HTTPS authentication hosts', () => {

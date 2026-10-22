@@ -39,3 +39,11 @@ export function requireRecord(value: unknown): Record<string, unknown> {
   }
   return value as Record<string, unknown>
 }
+
+/** Only the native folder picker or a saved project can grant a folder binding. */
+export function requireGrantedFolder(input: unknown, allowedPaths: ReadonlySet<string>): void {
+  const project = requireRecord(input)
+  if (project.folderPath === undefined || project.folderPath === '') return
+  if (typeof project.folderPath !== 'string' || !allowedPaths.has(project.folderPath))
+    throw new Error('Choose the project folder using the folder picker before saving.')
+}
