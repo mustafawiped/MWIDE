@@ -1,57 +1,40 @@
 # Architecture
 
-MWIDE uses Electron, React, TypeScript, electron-vite, and pnpm in a single package. UI work comes first; backend behavior is added in small, tested milestones. Apply SOLID through clear responsibilities and narrow boundaries, with minimal boilerplate.
+MWIDE uses Electron, React, TypeScript, electron-vite, and pnpm in one package. Keep responsibilities focused and introduce abstractions at concrete integration boundaries.
 
 ## Module boundaries
 
-| Location        | Responsibility                                                                |
-| --------------- | ----------------------------------------------------------------------------- |
-| `src/main`      | Electron lifecycle, windows, and privileged desktop operations                |
-| `src/preload`   | Narrow, typed bridge available to the renderer                                |
-| `src/renderer`  | Project, conversation, context, provider, and tool-management screens         |
-| `src/shared`    | Data and communication contracts shared across processes                      |
-| `src/core`      | Provider-independent project, conversation, context, and selection rules      |
-| `src/providers` | Codex app-server and independent Ollama adapters                              |
-| `src/catalog`   | MCP/Skill definitions, user defaults, project selections, and recommendations |
+| Location        | Responsibility                                                             |
+| --------------- | -------------------------------------------------------------------------- |
+| `src/main`      | Desktop lifecycle, atomic local storage, validated IPC, provider processes |
+| `src/preload`   | Explicit, typed workspace operations and event subscriptions               |
+| `src/renderer`  | Project, catalog, provider, and conversation interfaces                    |
+| `src/shared`    | Workspace records and bridge contracts                                     |
+| `src/core`      | Validation, project context, summaries, and workspace coordination         |
+| `src/providers` | Independent Codex app-server and Ollama adapters                           |
 
-These are modules within one application. Add abstractions when a concrete behavior or integration needs a boundary.
+The core depends on small repository and model-provider contracts. It does not import Electron or React. The renderer cannot access Node, credentials, arbitrary files, or a shell. IPC accepts only the application's main frame and a fixed set of operations.
 
-## Process boundary
+## Storage and continuity
 
-The renderer has no direct filesystem, credential, or arbitrary shell access. Desktop operations use the typed preload bridge and validated main-process handlers. Domain behavior stays independent of Electron, React, and provider-specific session formats.
+The versioned workspace file lives in Electron's application data directory. Writes are serialized, validated, flushed to a temporary file, then atomically renamed. Memory changes only after a successful write. Invalid files are preserved and reported; startup never silently resets them. This first release uses JSON to keep the storage boundary small. A future database must preserve the same repository behavior and provide explicit migrations.
 
-Codex app-server will run as a local child process. Ollama will use its own local server connection. Credentials and process management stay outside the renderer. The current screen milestone does not implement these live connections or tool execution.
+Project purpose, architecture notes, and additional rules are canonical records. Every model request receives them in full, separately from generated conversation summaries. Only an explicit project edit changes them. Unknown architecture is marked as undecided.
 
-## Project context
+Full messages remain stored after summarization. Summaries contain at most 1,600 characters; invalid output never advances the summary boundary. New conversations summarize earlier project chats before creation. Requests include the other chats' summaries and any unsummarized tails, with no information from other projects. Long active conversations compact earlier messages in bounded batches while keeping recent message pairs. Oversized provider context produces an error rather than silently cutting canonical fields.
 
-The core distinguishes three kinds of information:
-
-- **Canonical project records:** name, complete purpose, architecture notes, and additional user rules
-- **Conversation records:** full messages and relevant provider session references
-- **Continuity summaries:** short generated handoffs containing decisions, progress, questions, and next steps
-
-Summaries refer to canonical records; they must not replace or silently edit them. Starting a new chat preserves complete purpose and architecture. Explicit project edits update canonical records separately from summarization. MWIDE owns its project and conversation identifiers; provider session identifiers are linked references.
-
-Durable storage is a backend milestone. SQLite remains the planned local store; its schema and migrations should follow actual project and conversation workflows.
+One model operation runs at a time. Accepted user messages are saved with an interrupted assistant placeholder before generation. Completed, failed, and cancelled responses have distinct terminal states, so retrying does not duplicate accepted user messages. Cancellation before acceptance preserves the draft.
 
 ## Provider adapters
 
-The Codex app-server adapter will own initialization, threads, turns, streamed events, cancellation, and resume. The initial protocol flow includes `initialize`, `thread/start`, and `turn/start`. Pin the supported runtime/protocol version and define recovery and token renewal during integration. [Codex app-server](https://learn.chatgpt.com/docs/app-server)
+Codex runs as a native child process with an isolated MWIDE profile and workspace. The adapter initializes app-server, checks its tool policy, discovers models, creates ephemeral threads, injects MWIDE history, and streams turns. The current protocol fixtures target `0.163.0-alpha.11`. Existing Codex credentials are not copied. Only ChatGPT accounts are accepted; there is no silent API-billing fallback. Each request uses MWIDE's saved context instead of relying on a provider-owned chat history.
 
-Engine selection does not itself authorize ChatGPT plan usage. The authentication layer will handle the supported Sign in with ChatGPT flow for eligible distribution and accounts. API-key access has separate billing. Show the active account and payment source, and never switch silently to API billing. [OpenAI scope](https://developers.openai.com/siwc/token-sharing-open-source), [SIWC with app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
+Ollama uses local HTTP at `localhost`, `127.0.0.1`, or `::1`. Its adapter discovers local completion models, checks model context metadata, streams NDJSON, and propagates cancellation and connection errors. Cloud models and unexpected tool calls are rejected.
 
-MWIDE maintains its own conversation history and supplies supported context to providers. Account authorization does not import ChatGPT history, and preview API limitations must be respected. [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+Both adapters provide text conversations in this milestone. Codex tools, web search, and MCP servers are disabled; selected Skills contribute instructions and MCP entries contribute references. Model recommendations can only reference existing catalog entries. Users review and apply suggestions explicitly.
 
-The independent Ollama adapter will handle local endpoint configuration, model selection, streaming, cancellation, and connection errors. LM Studio can later use a separate OpenAI-compatible adapter. Provider capabilities should be explicit rather than assumed identical.
+## Validation
 
-## Catalog and recommendations
+Run type, lint, format, behavior-test, and production-build checks before committing. Provider fixtures cover protocol failures, cancellation, tool denial, authentication isolation, streaming, and context limits. Inspect the real desktop flow as well as provider fixtures. Describe real account and local-model checks separately from mocked integration coverage.
 
-Keep metadata, user defaults, project selections, generated recommendations, installation, and execution as distinct states. A user presses a recommendation button to send relevant project context to the selected model. Display suggestions without modifying defaults or granting permissions.
-
-Installing or running an MCP server or Skill requires a separate authorized action. Show its source, version, requested access, and project scope. Future MCP child processes need lifecycle, cancellation, timeout, and permission-revocation handling. Skill content cannot grant itself broader permissions.
-
-## Milestone validation
-
-Develop the visible interaction first, then connect its backend and verify the complete flow. Run type, lint, format, behavior-test, and build checks appropriate to the milestone. Inspect desktop screens and error states. Commit and push tested milestones with an accurate description of implemented behavior.
-
-Keep documentation and in-app reports in English. Never commit credentials, local project data, or model downloads. Do not present a provider as connected until its real end-to-end flow has been verified.
+Documentation and UI copy stay in English. Credentials, local workspace records, generated test profiles, and model downloads never belong in Git.

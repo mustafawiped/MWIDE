@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import type { CatalogItem, CatalogKind } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
-import { EmptyState, Icon, PageHeading } from './ui'
+import { ConfirmDialog, EmptyState, Icon, PageHeading, Textarea } from './ui'
+import { focusInvalidField } from './formValidation'
 type CatalogDraft = Omit<CatalogItem, 'id'> & { id?: string }
 const newItem = (): CatalogDraft => ({ kind: 'mcp', name: '', description: '', instructions: '' })
 
@@ -11,6 +12,7 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
   const [draft, setDraftState] = useState<CatalogDraft | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | CatalogKind>('all')
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const disabled = workspace.pending || Boolean(workspace.generatingId)
   const filtered = catalog.filter((item) => filter === 'all' || item.kind === filter)
   const setDraft = (next: CatalogDraft | null) => {
@@ -23,14 +25,24 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
         next.kind !== (original?.kind ?? 'mcp'))
     workspace.markDirty('catalog', dirty)
     setDraftState(next)
+    setErrors({})
   }
-  const replaceDraft = (next: CatalogDraft | null) => {
-    if (workspace.confirmDiscard()) setDraft(next)
+  const replaceDraft = async (next: CatalogDraft | null) => {
+    if (await workspace.confirmDiscard()) setDraft(next)
   }
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!draft || !draft.name.trim() || !draft.description.trim() || !draft.instructions.trim())
+    if (!draft || disabled) return
+    const nextErrors: Record<string, string> = {}
+    if (!draft.name.trim()) nextErrors.name = 'Enter a catalog entry name.'
+    if (!draft.description.trim()) nextErrors.description = 'Describe when this entry is useful.'
+    if (!draft.instructions.trim()) nextErrors.instructions = 'Add the instructions for this entry.'
+    setErrors(nextErrors)
+    const first = Object.keys(nextErrors)[0]
+    if (first) {
+      focusInvalidField(event.currentTarget, first)
       return
+    }
     const next = await workspace.mutate((bridge) =>
       bridge.saveCatalogItem({
         ...draft,
@@ -55,7 +67,7 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
         <button
           className="button primary"
           disabled={disabled}
-          onClick={() => replaceDraft(newItem())}
+          onClick={() => void replaceDraft(newItem())}
         >
           <Icon name="plus" size={17} />
           Add entry
@@ -66,7 +78,11 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
         <span>Selected skills provide instructions. MCP tool execution is not enabled yet.</span>
       </div>
       {draft && (
-        <form className="panel form-panel catalog-editor" onSubmit={(event) => void save(event)}>
+        <form
+          className="panel form-panel catalog-editor"
+          noValidate
+          onSubmit={(event) => void save(event)}
+        >
           <div className="section-heading">
             <h2>{draft.id ? 'Edit entry' : 'Add to your catalog'}</h2>
             <p>Describe when this entry is useful and how it should be used.</p>
@@ -90,49 +106,73 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
                 <span className="field-label">Name</span>
                 <input
                   className="input"
+                  name="name"
                   required
                   maxLength={120}
                   value={draft.name}
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   placeholder="Give this entry a clear name"
                   autoFocus
+                  aria-invalid={Boolean(errors.name)}
+                  aria-describedby={errors.name ? 'catalog-name-error' : undefined}
                 />
+                {errors.name && (
+                  <span className="field-error" id="catalog-name-error">
+                    {errors.name}
+                  </span>
+                )}
               </label>
             </div>
             <label className="field">
               <span className="field-label">Description</span>
-              <textarea
-                className="textarea"
+              <Textarea
+                className="textarea resize-none"
+                name="description"
                 required
                 rows={2}
+                maxLength={4_000}
                 value={draft.description}
                 onChange={(event) => setDraft({ ...draft, description: event.target.value })}
                 placeholder="When would this be useful?"
+                aria-invalid={Boolean(errors.description)}
+                aria-describedby={errors.description ? 'catalog-description-error' : undefined}
               />
+              {errors.description && (
+                <span className="field-error" id="catalog-description-error">
+                  {errors.description}
+                </span>
+              )}
             </label>
             <label className="field">
               <span className="field-label">Instructions</span>
-              <textarea
-                className="textarea"
+              <Textarea
+                className="textarea resize-none"
+                name="instructions"
                 required
                 rows={5}
+                maxLength={16_000}
                 value={draft.instructions}
                 onChange={(event) => setDraft({ ...draft, instructions: event.target.value })}
                 placeholder="Instructions to include in selected projects"
+                aria-invalid={Boolean(errors.instructions)}
+                aria-describedby={errors.instructions ? 'catalog-instructions-error' : undefined}
               />
+              {errors.instructions && (
+                <span className="field-error" id="catalog-instructions-error">
+                  {errors.instructions}
+                </span>
+              )}
             </label>
             <div className="form-actions">
-              <button className="button ghost" type="button" onClick={() => replaceDraft(null)}>
+              <button
+                className="button ghost"
+                type="button"
+                onClick={() => void replaceDraft(null)}
+              >
                 Cancel
               </button>
-              <button
-                className="button primary"
-                type="submit"
-                disabled={
-                  !draft.name.trim() || !draft.description.trim() || !draft.instructions.trim()
-                }
-              >
-                {workspace.pending ? 'Saving…' : 'Save entry'}
+              <button className="button primary" type="submit">
+                Save entry
               </button>
             </div>
           </fieldset>
@@ -176,32 +216,13 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
                   <summary>View instructions</summary>
                   <pre className="instruction-text">{item.instructions}</pre>
                 </details>
-                {removingId === item.id && (
-                  <div className="remove-confirm">
-                    <span>Remove this entry from your catalog?</span>
-                    <button
-                      className="button danger"
-                      disabled={disabled}
-                      onClick={() => void remove(item.id)}
-                    >
-                      Remove
-                    </button>
-                    <button
-                      className="button ghost"
-                      disabled={disabled}
-                      onClick={() => setRemovingId(null)}
-                    >
-                      Keep entry
-                    </button>
-                  </div>
-                )}
               </div>
               <div className="entry-actions">
                 <button
                   className="button ghost"
                   disabled={disabled}
                   onClick={() => {
-                    replaceDraft({ ...item })
+                    void replaceDraft({ ...item })
                     setRemovingId(null)
                   }}
                 >
@@ -210,7 +231,10 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
                 <button
                   className="button ghost danger-text"
                   disabled={disabled}
-                  onClick={() => setRemovingId(item.id)}
+                  onClick={() => {
+                    workspace.clearError()
+                    setRemovingId(item.id)
+                  }}
                 >
                   Remove
                 </button>
@@ -218,6 +242,20 @@ export function CatalogPage({ workspace }: { workspace: WorkspaceController }): 
             </article>
           ))}
         </div>
+      )}
+      {removingId && (
+        <ConfirmDialog
+          title={`Remove ${catalog.find((item) => item.id === removingId)?.name ?? 'catalog entry'}?`}
+          confirmLabel="Remove entry"
+          cancelLabel="Keep entry"
+          busy={disabled}
+          error={workspace.error}
+          onConfirm={() => void remove(removingId)}
+          onCancel={() => setRemovingId(null)}
+        >
+          This removes the entry from your catalog and project selections. Existing conversation
+          history is kept.
+        </ConfirmDialog>
       )}
     </div>
   )

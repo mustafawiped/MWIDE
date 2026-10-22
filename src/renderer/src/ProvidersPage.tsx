@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import type { ProviderId, ProviderSettings, ProviderStatus } from '../../shared/contracts'
+import { parseSettings } from '../../core/validation'
 import type { WorkspaceController } from './useWorkspace'
 import { PageHeading } from './ui'
 const initialSettings: ProviderSettings = {
@@ -17,16 +18,26 @@ export function ProvidersPage({ workspace }: { workspace: WorkspaceController })
   const [statuses, setStatuses] = useState<Partial<Record<ProviderId, ProviderStatus>>>({})
   const [notice, setNotice] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [urlError, setUrlError] = useState('')
   const disabled = workspace.pending || Boolean(workspace.generatingId)
   const change = (next: Partial<ProviderSettings>) => {
     workspace.markDirty('providers', true)
     setDraft((previous) => ({ ...previous, ...next }))
     setDirty(true)
     setNotice('')
-    if ('ollamaUrl' in next) setStatuses((previous) => ({ ...previous, ollama: undefined }))
+    if ('ollamaUrl' in next) {
+      setUrlError('')
+      setStatuses((previous) => ({ ...previous, ollama: undefined }))
+    }
   }
   const save = async (): Promise<boolean> => {
-    if (!draft.ollamaUrl.trim()) return false
+    try {
+      parseSettings(draft)
+    } catch (failure) {
+      setUrlError(failure instanceof Error ? failure.message : 'Enter a local Ollama service URL.')
+      document.getElementById('ollama-url')?.focus()
+      return false
+    }
     const next = await workspace.mutate((bridge) => bridge.saveSettings(draft))
     if (!next) return false
     setDirty(false)
@@ -139,12 +150,25 @@ export function ProvidersPage({ workspace }: { workspace: WorkspaceController })
             <span className="field-label">Service URL</span>
             <input
               className="input"
+              id="ollama-url"
               type="url"
               required
               value={draft.ollamaUrl}
               onChange={(event) => change({ ollamaUrl: event.target.value })}
               placeholder="http://localhost:11434"
+              maxLength={2_048}
+              aria-invalid={Boolean(urlError)}
+              aria-describedby={urlError ? 'ollama-url-error' : 'ollama-url-help'}
             />
+            {urlError ? (
+              <span id="ollama-url-error" className="field-error">
+                {urlError}
+              </span>
+            ) : (
+              <span id="ollama-url-help" className="hint">
+                Local HTTP only, for example http://127.0.0.1:11434.
+              </span>
+            )}
           </label>
           <div className="provider-actions">
             <button className="button secondary" onClick={() => void inspect('ollama')}>
@@ -191,12 +215,8 @@ export function ProvidersPage({ workspace }: { workspace: WorkspaceController })
             <span className="hint">
               {dirty ? 'You have unsaved changes.' : 'Provider checks do not run automatically.'}
             </span>
-            <button
-              className="button primary"
-              disabled={!draft.ollamaUrl.trim()}
-              onClick={() => void save()}
-            >
-              {workspace.pending ? 'Saving…' : 'Save settings'}
+            <button className="button primary" onClick={() => void save()}>
+              Save settings
             </button>
           </div>
         </fieldset>

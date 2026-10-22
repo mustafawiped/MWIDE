@@ -1,4 +1,108 @@
-import type { JSX, ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef } from 'react'
+import type { JSX, ReactNode, TextareaHTMLAttributes } from 'react'
+
+export function Textarea({
+  style,
+  className = '',
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>): JSX.Element {
+  const element = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const resize = () => {
+      if (!element.current) return
+      element.current.style.height = 'auto'
+      element.current.style.height = `${element.current.scrollHeight}px`
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [props.value])
+  return (
+    <textarea
+      {...props}
+      className={`resize-none ${className}`}
+      ref={element}
+      style={{ ...style, resize: 'none' }}
+    />
+  )
+}
+
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+  busy = false,
+  error,
+}: {
+  title: string
+  children: ReactNode
+  confirmLabel: string
+  cancelLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+  busy?: boolean
+  error?: string
+}): JSX.Element {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const cancelButton = useRef<HTMLButtonElement>(null)
+  const titleId = useId()
+  const descriptionId = useId()
+  useEffect(() => {
+    const element = dialog.current
+    const trigger = document.activeElement
+    element?.showModal()
+    cancelButton.current?.focus()
+    return () => {
+      element?.close()
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus()
+      else document.getElementById('main-content')?.focus()
+    }
+  }, [])
+  return (
+    <dialog
+      ref={dialog}
+      className="confirmation-dialog"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      onCancel={(event) => {
+        event.preventDefault()
+        if (!busy) onCancel()
+      }}
+    >
+      <h2 id={titleId}>{title}</h2>
+      <p id={descriptionId}>{children}</p>
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="form-actions">
+        <button
+          ref={cancelButton}
+          className="button secondary"
+          type="button"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          {cancelLabel}
+        </button>
+        <button
+          className="button danger"
+          type="button"
+          disabled={busy}
+          aria-busy={busy}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </dialog>
+  )
+}
+
 export type IconName =
   | 'projects'
   | 'catalog'

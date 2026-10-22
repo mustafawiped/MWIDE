@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectDraft } from '../../shared/contracts'
 import { useWorkspace } from './useWorkspace'
-import { Brand, EmptyState, Icon, PageHeading } from './ui'
+import { Brand, ConfirmDialog, EmptyState, Icon, PageHeading } from './ui'
 import type { IconName } from './ui'
 import { ProjectEditor } from './ProjectEditor'
 import { ProvidersPage } from './ProvidersPage'
@@ -27,8 +27,8 @@ export default function App(): JSX.Element {
   const locked = Boolean(workspace.generatingId) || workspace.pending
   const settings = workspace.state?.settings
   const model = settings?.defaultProvider === 'ollama' ? settings.ollamaModel : settings?.codexModel
-  const navigate = (next: Page) => {
-    if (!workspace.confirmDiscard()) return
+  const navigate = async (next: Page) => {
+    if (!(await workspace.confirmDiscard())) return
     setPage(next)
     setProjectForm(null)
     setSelectedProjectId(null)
@@ -72,7 +72,7 @@ export default function App(): JSX.Element {
                 key={item.id}
                 aria-current={page === item.id ? 'page' : undefined}
                 disabled={locked}
-                onClick={() => navigate(item.id)}
+                onClick={() => void navigate(item.id)}
               >
                 <Icon name={item.icon} />
                 <span>
@@ -152,8 +152,8 @@ export default function App(): JSX.Element {
                 catalog={workspace.state?.catalog ?? []}
                 workspace={workspace}
                 onSave={saveProject}
-                onCancel={() => {
-                  if (workspace.confirmDiscard()) setProjectForm(null)
+                onCancel={async () => {
+                  if (await workspace.confirmDiscard()) setProjectForm(null)
                 }}
                 editing={projectForm === 'edit'}
               />
@@ -231,6 +231,17 @@ export default function App(): JSX.Element {
           )}
         </main>
       </div>
+      {workspace.discardRequested && (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          confirmLabel="Discard changes"
+          cancelLabel="Keep editing"
+          onConfirm={() => workspace.resolveDiscard(true)}
+          onCancel={() => workspace.resolveDiscard(false)}
+        >
+          Your changes to this form have not been saved. Discard them to continue.
+        </ConfirmDialog>
+      )}
     </>
   )
 }

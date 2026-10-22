@@ -8,7 +8,7 @@
 - Projects include a name, complete purpose, additional rules, and canonical architecture notes.
 - Keep complete purpose and architecture separate from short cross-chat summaries. Summarization must not silently rewrite protected project records.
 - Support user-defined default MCP servers and Skills. Model recommendations run only when the user presses an explicit recommendation button.
-- Read `docs/product-scope.md` before expanding scope. The current phase is the UI preview; live backend integrations follow.
+- Read `docs/product-scope.md` before expanding scope. Preserve working project storage, provider connections, and cross-chat continuity.
 
 ## Implementation
 
@@ -29,6 +29,6 @@
 
 ## Validation
 
-- Run `pnpm check` and `pnpm build` for implementation changes.
+- Run `pnpm check`, `pnpm test`, and `pnpm build` for implementation changes.
 - Add and run behavior tests as actual product behavior is introduced. Avoid tests that merely mirror static content.
 - Keep the lockfile committed. Do not claim a provider is connected until a real end-to-end integration is verified.

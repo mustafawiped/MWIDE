@@ -13,14 +13,38 @@ export function useWorkspace() {
   const [pending, setPending] = useState(false)
   const [operationCancelling, setOperationCancelling] = useState(false)
   const [error, setError] = useState('')
-  const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [generation, setGeneration] = useState<{
+    conversationId: string
+    knownMessageIds: Set<string>
+  } | null>(null)
   const [stream, setStream] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({})
   const [dirtyForms, setDirtyForms] = useState<Record<string, boolean>>({})
+  const [discardRequested, setDiscardRequested] = useState(false)
+  const discardDecision = useRef<((discard: boolean) => void) | null>(null)
   const mounted = useRef(true)
   const taskPending = useRef(false)
   const activeSend = useRef<{ conversationId: string; cancelled: boolean } | null>(null)
+  const hasUnsavedChanges = Object.values(dirtyForms).some(Boolean)
+  const generatingId = generation?.conversationId ?? null
+  const activeReply = generation
+    ? state?.conversations
+        .find((conversation) => conversation.id === generation.conversationId)
+        ?.messages.find(
+          (item) => item.role === 'assistant' && !generation.knownMessageIds.has(item.id),
+        )
+    : undefined
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+    const preventUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', preventUnload)
+    return () => window.removeEventListener('beforeunload', preventUnload)
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     mounted.current = true
@@ -58,13 +82,15 @@ export function useWorkspace() {
     return () => {
       disposed = true
       mounted.current = false
+      discardDecision.current?.(false)
+      discardDecision.current = null
       unsubscribe?.()
     }
   }, [bridge])
 
   const execute = useCallback(
     async <T>(task: (service: WorkspaceBridge) => Promise<T>): Promise<T | undefined> => {
-      if (taskPending.current) return undefined
+      if (taskPending.current || activeSend.current) return undefined
       if (!bridge) {
         setError(unavailable)
         return undefined
@@ -106,7 +132,14 @@ export function useWorkspace() {
       }
       const request = { conversationId, cancelled: false }
       activeSend.current = request
-      setGeneratingId(conversationId)
+      setGeneration({
+        conversationId,
+        knownMessageIds: new Set(
+          state?.conversations
+            .find((conversation) => conversation.id === conversationId)
+            ?.messages.map((item) => item.id),
+        ),
+      })
       setStream('')
       setError('')
       try {
@@ -119,13 +152,13 @@ export function useWorkspace() {
       } finally {
         if (activeSend.current === request) activeSend.current = null
         if (mounted.current) {
-          setGeneratingId(null)
+          setGeneration(null)
           setStream('')
           setCancelling(false)
         }
       }
     },
-    [bridge],
+    [bridge, state],
   )
 
   const stop = useCallback(async () => {
@@ -160,11 +193,19 @@ export function useWorkspace() {
   const markDirty = (form: string, dirty: boolean) => {
     setDirtyForms((previous) => ({ ...previous, [form]: dirty }))
   }
-  const confirmDiscard = (): boolean => {
-    if (!Object.values(dirtyForms).some(Boolean)) return true
-    if (!window.confirm('You have unsaved changes. Discard them and continue?')) return false
-    setDirtyForms({})
-    return true
+  const confirmDiscard = async (): Promise<boolean> => {
+    if (!hasUnsavedChanges) return true
+    if (discardDecision.current) return false
+    setDiscardRequested(true)
+    return new Promise((resolve) => {
+      discardDecision.current = resolve
+    })
+  }
+  const resolveDiscard = (discard: boolean) => {
+    if (discard) setDirtyForms({})
+    setDiscardRequested(false)
+    discardDecision.current?.(discard)
+    discardDecision.current = null
   }
 
   return {
@@ -175,12 +216,16 @@ export function useWorkspace() {
     cancelOperation,
     error,
     generatingId,
+    activeReplyId: activeReply?.id,
+    responseSaved: activeReply?.status === 'complete',
     stream,
     cancelling,
     chatDrafts,
     setChatDrafts,
     markDirty,
     confirmDiscard,
+    discardRequested,
+    resolveDiscard,
     available: Boolean(bridge),
     execute,
     mutate,

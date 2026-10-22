@@ -32,3 +32,9 @@ jobs:
         run: pnpm test
       - name: Build application
         run: pnpm build
+      - name: Test desktop workflow (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum pnpm exec electron --no-sandbox tests/desktop-smoke.cjs
+      - name: Test desktop workflow (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm test:desktop

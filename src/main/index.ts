@@ -1,5 +1,12 @@
 import { app, BrowserWindow, Menu, session } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { registerWorkspace } from './workspace-ipc.ts'
+
+const rendererFile = join(__dirname, '../renderer/index.html')
+const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined
+const rendererUrl = developmentUrl ?? pathToFileURL(rendererFile).href
+let workspace: Awaited<ReturnType<typeof registerWorkspace>> | undefined
 
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({
@@ -30,12 +37,10 @@ async function createWindow(): Promise<void> {
   window.webContents.on('will-attach-webview', (event) => event.preventDefault())
   window.webContents.on('page-title-updated', (event) => event.preventDefault())
 
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL
-
-  if (!app.isPackaged && rendererUrl) {
-    await window.loadURL(rendererUrl)
+  if (developmentUrl) {
+    await window.loadURL(developmentUrl)
   } else {
-    await window.loadFile(join(__dirname, '../renderer/index.html'))
+    await window.loadFile(rendererFile)
   }
 }
 
@@ -46,15 +51,27 @@ function handleStartupError(error: unknown): void {
 
 app.setName('MWIDE')
 
+const ownsWorkspace = app.requestSingleInstanceLock()
+if (!ownsWorkspace) app.quit()
+app.on('second-instance', () => {
+  const window = BrowserWindow.getAllWindows()[0]
+  if (!window) return
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+})
+
 app
   .whenReady()
   .then(async () => {
+    if (!ownsWorkspace) return
     Menu.setApplicationMenu(null)
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
       callback(false),
     )
     session.defaultSession.setPermissionCheckHandler(() => false)
 
+    workspace = await registerWorkspace(rendererUrl)
     await createWindow()
 
     app.on('activate', () => {
@@ -64,6 +81,8 @@ app
     })
   })
   .catch(handleStartupError)
+
+app.on('before-quit', () => workspace?.dispose())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

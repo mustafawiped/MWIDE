@@ -1,5 +1,5 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   color: #dce6ef;
   background: #10171f;
   font-synthesis: none;
@@ -14,9 +14,21 @@
   --secondary: #a5b5c4;
   --muted: #8398aa;
   --accent: #7cdbc4;
+  --scrollbar-thumb: #344756;
+  --scrollbar-track: #10171f;
+  --scrollbar-hover: #506573;
+  --scrollbar-active: #7cdbc4;
+  --danger: #f2c4c9;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-utility: ui-monospace, 'Cascadia Code', monospace;
+  --radius-control: 7px;
+  --radius-panel: 11px;
+  --radius-card: 10px;
 }
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
 }
 body {
   min-width: 360px;
@@ -71,9 +83,31 @@ fieldset {
   width: 7px;
   height: 7px;
 }
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
 ::-webkit-scrollbar-thumb {
-  background: #344756;
+  background: var(--scrollbar-thumb);
   border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-active);
+}
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: ButtonText;
+    border: 2px solid Canvas;
+  }
+  ::-webkit-scrollbar-track {
+    background: Canvas;
+  }
 }
 h1,
 h2,
@@ -300,7 +334,7 @@ svg {
   gap: 8px;
   padding: 9px 13px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   color: var(--primary);
   background: transparent;
   font-size: 11px;
@@ -341,6 +375,13 @@ svg {
 }
 .button.danger-text {
   color: #e3a6ab;
+}
+.button.danger:hover:not(:disabled) {
+  background: #623840;
+}
+.button:active:not(:disabled),
+.icon-button:active:not(:disabled) {
+  filter: brightness(0.9);
 }
 .icon-button {
   display: inline-grid;
@@ -439,7 +480,7 @@ svg {
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: var(--radius-panel);
 }
 .projects-empty {
   display: flex;
@@ -638,8 +679,40 @@ svg {
   opacity: 1;
 }
 .textarea {
-  resize: vertical;
+  resize: none;
   min-height: 72px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.field-error {
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.7;
+}
+[aria-invalid='true'] {
+  border-color: #ad6872;
+}
+.confirmation-dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 26px;
+  color: var(--primary);
+  background: var(--panel);
+  border: 1px solid #506573;
+  border-radius: var(--radius-panel);
+  box-shadow: 0 24px 80px #050b1280;
+}
+.confirmation-dialog::backdrop {
+  background: #060c13b8;
+}
+.confirmation-dialog > p {
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.confirmation-dialog > .field-error {
+  color: var(--danger);
 }
 .input:hover:not(:disabled),
 .textarea:hover:not(:disabled),
@@ -844,6 +917,13 @@ svg {
   color: #d6e7df;
   background: #2a3d3b;
 }
+.segmented-control button:hover:not(:disabled) {
+  color: var(--primary);
+  background: #253832;
+}
+.catalog-option:hover {
+  border-color: #507b69;
+}
 .catalog-list {
   display: grid;
   gap: 14px;
@@ -884,7 +964,7 @@ svg {
   background: #101b24;
   border-radius: 7px;
   color: var(--secondary);
-  font-family: inherit;
+  font-family: var(--font-utility);
   font-size: 11px;
   line-height: 1.9;
 }
@@ -1086,6 +1166,7 @@ svg {
   flex: 1;
   overflow: auto;
   padding: 20px 30px;
+  scrollbar-gutter: stable;
 }
 .chat-stream .empty-state {
   min-height: 100%;
@@ -1209,7 +1290,7 @@ svg {
   width: 100%;
   min-height: 66px;
   max-height: 240px;
-  resize: vertical;
+  resize: none;
   border: 0;
   outline: none;
   color: var(--primary);

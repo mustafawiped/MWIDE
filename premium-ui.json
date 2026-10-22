@@ -1,0 +1,16 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["src/renderer"],
+  "locale": "en",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Select/Listbox", "Form", "Scrollbar", "CRUD"],
+  "ownership": { "Select/Listbox": "native" },
+  "requiredCommands": ["typecheck", "lint", "format", "test", "build"],
+  "commands": {
+    "typecheck": "pnpm typecheck",
+    "lint": "pnpm lint",
+    "format": "pnpm format:check",
+    "test": "pnpm test",
+    "build": "pnpm build"
+  }
+}

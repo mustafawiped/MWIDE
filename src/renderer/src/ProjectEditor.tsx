@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import type { CatalogItem, ProjectDraft, Recommendation } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
-import { Icon } from './ui'
+import { Icon, Textarea } from './ui'
+import { focusInvalidField } from './formValidation'
 
 export function ProjectEditor({
   initial,
@@ -25,19 +26,33 @@ export function ProjectEditor({
   }))
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [recommendationDone, setRecommendationDone] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const disabled = workspace.pending || Boolean(workspace.generatingId)
+  const updateDraft = (next: ProjectDraft) => {
+    setDraft(next)
+    workspace.markDirty(
+      'project',
+      next.name !== initial.name ||
+        next.description !== initial.description ||
+        next.rules !== initial.rules ||
+        next.architecture !== initial.architecture ||
+        next.catalogIds.length !== initial.catalogIds.length ||
+        next.catalogIds.some((id) => !initial.catalogIds.includes(id)),
+    )
+  }
   const setField = (field: 'name' | 'description' | 'rules' | 'architecture', value: string) => {
-    workspace.markDirty('project', true)
-    setDraft((previous) => ({ ...previous, [field]: value }))
+    updateDraft({ ...draft, [field]: value })
+    setErrors((previous) => ({ ...previous, [field]: '' }))
+    setRecommendations([])
+    setRecommendationDone(false)
   }
   const toggle = (id: string) => {
-    workspace.markDirty('project', true)
-    setDraft((previous) => ({
-      ...previous,
-      catalogIds: previous.catalogIds.includes(id)
-        ? previous.catalogIds.filter((value) => value !== id)
-        : [...previous.catalogIds, id],
-    }))
+    updateDraft({
+      ...draft,
+      catalogIds: draft.catalogIds.includes(id)
+        ? draft.catalogIds.filter((value) => value !== id)
+        : [...draft.catalogIds, id],
+    })
   }
   const recommend = async () => {
     const items = await workspace.execute((bridge) => bridge.recommend(draft))
@@ -45,20 +60,30 @@ export function ProjectEditor({
       const valid = items.filter((item) => catalog.some((entry) => entry.id === item.id))
       setRecommendations(valid)
       setRecommendationDone(true)
-      if (valid.length > 0) workspace.markDirty('project', true)
-      setDraft((previous) => ({
-        ...previous,
-        catalogIds: [...new Set([...previous.catalogIds, ...valid.map((item) => item.id)])],
-      }))
     }
+  }
+  const applyRecommendations = () => {
+    updateDraft({
+      ...draft,
+      catalogIds: [...new Set([...draft.catalogIds, ...recommendations.map((item) => item.id)])],
+    })
   }
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (draft.name.trim() && draft.description.trim())
-      void onSave({ ...draft, name: draft.name.trim(), description: draft.description.trim() })
+    if (disabled) return
+    const nextErrors: Record<string, string> = {}
+    if (!draft.name.trim()) nextErrors.name = 'Enter a project name.'
+    if (!draft.description.trim()) nextErrors.description = 'Describe what this project aims to do.'
+    setErrors(nextErrors)
+    const first = Object.keys(nextErrors)[0]
+    if (first) {
+      focusInvalidField(event.currentTarget, first)
+      return
+    }
+    void onSave({ ...draft, name: draft.name.trim() })
   }
   return (
-    <form className="project-editor" onSubmit={submit}>
+    <form className="project-editor" noValidate onSubmit={submit}>
       <fieldset disabled={disabled} className="editor-grid">
         <div className="panel form-panel">
           <div className="section-heading">
@@ -71,34 +96,53 @@ export function ProjectEditor({
             </span>
             <input
               className="input"
+              name="name"
               required
               maxLength={120}
               value={draft.name}
               onChange={(event) => setField('name', event.target.value)}
               placeholder="A name for your next idea"
               autoFocus
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? 'project-name-error' : undefined}
             />
+            {errors.name && (
+              <span className="field-error" id="project-name-error">
+                {errors.name}
+              </span>
+            )}
           </label>
           <label className="field">
             <span className="field-label">
               Description <span className="required">*</span>
             </span>
-            <textarea
-              className="textarea"
+            <Textarea
+              className="textarea resize-none"
+              name="description"
               required
               rows={4}
+              maxLength={20_000}
               value={draft.description}
               onChange={(event) => setField('description', event.target.value)}
               placeholder="What are you building, and who is it for?"
+              aria-invalid={Boolean(errors.description)}
+              aria-describedby={errors.description ? 'project-description-error' : undefined}
             />
+            {errors.description && (
+              <span className="field-error" id="project-description-error">
+                {errors.description}
+              </span>
+            )}
           </label>
           <label className="field">
             <span className="field-label">
               Additional rules <span className="optional">Optional</span>
             </span>
-            <textarea
-              className="textarea"
+            <Textarea
+              className="textarea resize-none"
               rows={3}
+              maxLength={12_000}
+              name="rules"
               value={draft.rules}
               onChange={(event) => setField('rules', event.target.value)}
               placeholder="Conventions, constraints, and things to keep in mind"
@@ -108,10 +152,12 @@ export function ProjectEditor({
             <span className="field-label">
               Architecture notes <span className="optional">Optional</span>
             </span>
-            <textarea
-              className="textarea"
+            <Textarea
+              className="textarea resize-none"
               rows={3}
+              maxLength={20_000}
               value={draft.architecture}
+              name="architecture"
               onChange={(event) => setField('architecture', event.target.value)}
               placeholder="Not decided yet"
             />
@@ -125,16 +171,28 @@ export function ProjectEditor({
           <button
             className="button secondary full-width"
             type="button"
-            disabled={!draft.description.trim()}
+            disabled={!draft.name.trim() || !draft.description.trim() || catalog.length === 0}
             onClick={() => void recommend()}
           >
             <Icon name="sparkles" size={16} />
-            {workspace.pending ? 'Working…' : 'Recommend MCPs & Skills'}
+            Recommend MCPs & Skills
           </button>
           <p className="hint">
-            Uses your default provider and model. Recommendations select matching entries; you can
-            change the selection.
+            Uses your default provider and model. Review the suggestions, then apply the ones you
+            want.
           </p>
+          {recommendations.length > 0 && (
+            <button
+              className="button secondary full-width"
+              type="button"
+              disabled={recommendations.every((item) => draft.catalogIds.includes(item.id))}
+              onClick={applyRecommendations}
+            >
+              {recommendations.every((item) => draft.catalogIds.includes(item.id))
+                ? 'Recommendations selected'
+                : 'Apply recommendations'}
+            </button>
+          )}
           {catalog.length === 0 ? (
             <p className="inline-empty">
               Your catalog is empty. Add MCPs or skills in Catalog to make them available here.
@@ -181,12 +239,8 @@ export function ProjectEditor({
         <button className="button ghost" type="button" onClick={onCancel} disabled={disabled}>
           Cancel
         </button>
-        <button
-          className="button primary"
-          type="submit"
-          disabled={disabled || !draft.name.trim() || !draft.description.trim()}
-        >
-          {workspace.pending ? 'Saving…' : editing ? 'Save project context' : 'Create project'}
+        <button className="button primary" type="submit" disabled={disabled}>
+          {editing ? 'Save project context' : 'Create project'}
         </button>
       </div>
     </form>

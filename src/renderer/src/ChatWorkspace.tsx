@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import type { Conversation, Project } from '../../shared/contracts'
 import type { WorkspaceController } from './useWorkspace'
-import { EmptyState, Icon } from './ui'
+import { EmptyState, Icon, Textarea } from './ui'
 
 export function ChatWorkspace({
   project,
@@ -24,8 +24,12 @@ export function ChatWorkspace({
   const active = conversations.find((item) => item.id === selectedId) ?? conversations[0]
   const draft = active ? (drafts[active.id] ?? '') : ''
   const busy = Boolean(workspace.generatingId)
-  const streaming = active?.id === workspace.generatingId
-  const scrollEnd = useRef<HTMLDivElement>(null)
+  const streaming = active?.id === workspace.generatingId && !workspace.responseSaved
+  const savingMemory = active?.id === workspace.generatingId && workspace.responseSaved
+  const streamContainer = useRef<HTMLDivElement>(null)
+  const followLatest = useRef(true)
+  const displayedConversation = useRef<string | undefined>(undefined)
+  const composer = useRef<HTMLFormElement>(null)
   const settings = workspace.state?.settings
   const provider = settings?.defaultProvider === 'ollama' ? 'Ollama' : 'ChatGPT / Codex'
   const model = settings?.defaultProvider === 'ollama' ? settings.ollamaModel : settings?.codexModel
@@ -33,7 +37,13 @@ export function ChatWorkspace({
     project.catalogIds.includes(entry.id),
   )
   useEffect(() => {
-    scrollEnd.current?.scrollIntoView({ block: 'nearest' })
+    const container = streamContainer.current
+    if (!container) return
+    if (displayedConversation.current !== active?.id) {
+      displayedConversation.current = active?.id
+      followLatest.current = true
+    }
+    if (followLatest.current) container.scrollTop = container.scrollHeight
   }, [active?.id, active?.messages.length, workspace.stream])
   const newChat = async () => {
     const next = await workspace.mutate((bridge) => bridge.createConversation(project.id))
@@ -48,6 +58,7 @@ export function ChatWorkspace({
     if (!active || !draft.trim() || busy || workspace.pending) return
     const content = draft.trim()
     const conversationId = active.id
+    followLatest.current = true
     setDrafts((previous) => ({ ...previous, [conversationId]: '' }))
     const sent = await workspace.send(conversationId, content)
     if (!sent)
@@ -55,19 +66,12 @@ export function ChatWorkspace({
         ...previous,
         [conversationId]: previous[conversationId] || content,
       }))
+    composer.current?.querySelector('textarea')?.focus()
   }
   const renderMessages = (conversation: Conversation) => (
     <>
       {conversation.messages
-        .filter(
-          (message, index) =>
-            !(
-              streaming &&
-              index === conversation.messages.length - 1 &&
-              message.role === 'assistant' &&
-              message.status !== 'complete'
-            ),
-        )
+        .filter((message) => !(streaming && message.id === workspace.activeReplyId))
         .map((message) => (
           <article className={`message ${message.role}`} key={message.id}>
             <div className="message-avatar" aria-hidden="true">
@@ -147,6 +151,7 @@ export function ChatWorkspace({
                   disabled={busy}
                   aria-current={active?.id === conversation.id ? 'page' : undefined}
                   onClick={() => setSelectedId(conversation.id)}
+                  title={conversation.title}
                 >
                   <Icon name="chat" size={16} />
                   <span>{conversation.title}</span>
@@ -173,17 +178,30 @@ export function ChatWorkspace({
                 {model || 'No model selected'}
               </span>
             </div>
-            <span className="memory-badge">
+            <span className="memory-badge" role={savingMemory ? 'status' : undefined}>
               <span aria-hidden="true" />
-              {active?.summary ? 'Context memory saved' : 'Project context included'}
+              {savingMemory
+                ? workspace.cancelling
+                  ? 'Response saved · stopping memory update…'
+                  : 'Response saved · updating memory…'
+                : active?.summary
+                  ? 'Context memory saved'
+                  : 'Project context included'}
             </span>
           </header>
           <div
             className="chat-stream"
+            ref={streamContainer}
             role="log"
             aria-label="Messages"
             aria-live="polite"
             aria-relevant="additions text"
+            aria-busy={streaming}
+            onScroll={(event) => {
+              const container = event.currentTarget
+              followLatest.current =
+                container.scrollHeight - container.scrollTop - container.clientHeight < 100
+            }}
           >
             {!active ? (
               <EmptyState icon="chat" title="A new thread for your project.">
@@ -196,7 +214,6 @@ export function ChatWorkspace({
             ) : (
               renderMessages(active)
             )}
-            <div ref={scrollEnd} />
           </div>
           {active && (
             <details className="context-panel">
@@ -221,19 +238,25 @@ export function ChatWorkspace({
                   }
                 >
                   <Icon name="sparkles" size={15} />
-                  {workspace.pending ? 'Working…' : 'Optimize conversation'}
+                  Optimize conversation
                 </button>
               </div>
             </details>
           )}
-          <form className="composer" onSubmit={(event) => void submit(event)}>
+          <form
+            ref={composer}
+            className="composer"
+            noValidate
+            onSubmit={(event) => void submit(event)}
+          >
             <label className="sr-only" htmlFor="chat-message">
               Message
             </label>
-            <textarea
+            <Textarea
               id="chat-message"
-              className="composer-input"
+              className="composer-input resize-none"
               rows={3}
+              maxLength={12_000}
               value={draft}
               disabled={!active || busy || workspace.pending}
               placeholder={
@@ -246,7 +269,11 @@ export function ChatWorkspace({
                   setDrafts((previous) => ({ ...previous, [active.id]: event.target.value }))
               }}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                if (
+                  !event.nativeEvent.isComposing &&
+                  event.key === 'Enter' &&
+                  (event.ctrlKey || event.metaKey)
+                ) {
                   event.preventDefault()
                   event.currentTarget.form?.requestSubmit()
                 }
@@ -264,7 +291,11 @@ export function ChatWorkspace({
                   onClick={() => void workspace.stop()}
                 >
                   <Icon name="stop" size={15} />
-                  {workspace.cancelling ? 'Stopping…' : 'Stop response'}
+                  {workspace.cancelling
+                    ? 'Stopping…'
+                    : savingMemory
+                      ? 'Stop memory update'
+                      : 'Stop response'}
                 </button>
               ) : active ? (
                 <button
