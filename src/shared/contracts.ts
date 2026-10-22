@@ -1,4 +1,5 @@
 import type { CodeGraphQuery, CodeGraphResult, CodeIndexStatus } from './codegraph'
+import type { ToolLibraryInspection, ToolLibraryState } from './tool-library'
 
 export type ProviderId = 'codex' | 'ollama'
 export type CatalogKind = 'mcp' | 'skill'
@@ -50,6 +51,7 @@ export interface CatalogItem {
   name: string
   description: string
   instructions: string
+  libraryId?: string
 }
 
 export interface ProjectDraft {
@@ -103,6 +105,9 @@ export type ChatEvent =
 
 export interface WorkspaceBridge {
   getState(): Promise<WorkspaceState>
+  getToolLibrary(): Promise<ToolLibraryState>
+  importToolLibrary(): Promise<WorkspaceState>
+  inspectLibraryMcp(input: { id: string; projectId?: string }): Promise<ToolLibraryInspection>
   saveSettings(settings: ProviderSettings): Promise<WorkspaceState>
   inspectProvider(id: ProviderId): Promise<ProviderStatus>
   getCodexUsageLimits(): Promise<CodexUsageLimits>

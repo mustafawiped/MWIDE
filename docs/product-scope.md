@@ -8,6 +8,7 @@ MWIDE is a project-based prompt and conversation workspace with a personal MCP a
 
 - Create and edit projects with a name, complete purpose, additional rules, architecture notes, and catalog selections.
 - Maintain reusable Skill instructions and MCP references. Request recommendations from the default model, inspect the reasons, then apply the desired suggestions.
+- Install the reviewed 70-Skill, 30-MCP library into an MWIDE profile, retain upstream licenses and supporting files, inspect source/version/access requirements, and import installed entries without changing project selections. Explicit MCP connection checks negotiate the protocol and list bounded capabilities, then close the session.
 - Configure ChatGPT through Codex app-server or a local Ollama service, discover models, and choose the default provider.
 - Stream, stop, and save conversations. Open additional chats without an AI request, retaining exact short histories and compact memories from earlier chats in the same project.
 - Optimize conversation memory automatically while preserving full stored history and complete canonical project context. There is no manual optimization setting.
@@ -19,7 +20,7 @@ Purpose, architecture, and rules are never replaced by summaries. The user chang
 
 ## Next milestones
 
-Add actual MCP server configuration, lifecycle, and permissions; import Skills from explicit sources; then add deliberate approval flows for development actions. Show sources, versions, requested access, and project scope before installation or execution. The code index currently supplies structural evidence with explicit unresolved calls, rather than complete runtime dispatch, complete source retrieval or write access. Type checking, external packages, path aliases, dynamic dispatch and additional language adapters need separate milestones.
+Add user-configured MCP accounts, persistent server lifecycle, project permissions and AI tool invocation; extend Skill imports beyond the reviewed pack; then add deliberate approval flows for development actions. The current library supplies Skill instructions and MCP references to chat; it does not invoke MCP tools through the model or execute supporting Skill scripts. The code index currently supplies structural evidence with explicit unresolved calls, rather than complete runtime dispatch, complete source retrieval or write access. Type checking, external packages, path aliases, dynamic dispatch and additional language adapters need separate milestones.
 
 Later work may include a context-pressure prompt to continue in a new chat and a project memory index. The current release compacts the active conversation and lets users create a new one explicitly. Evaluate summary quality with realistic long projects before making stronger continuity guarantees.
 

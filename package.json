@@ -21,6 +21,9 @@
     "format:check": "prettier --check .",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:desktop": "electron tests/desktop-smoke.cjs",
+    "test:library": "electron tests/tool-library-desktop.cjs",
+    "library:pack": "node scripts/build-tool-library.mjs",
+    "library:install": "node --experimental-strip-types scripts/install-tool-library.mjs",
     "benchmark:core": "node --experimental-strip-types tests/performance-core.mjs",
     "benchmark:desktop": "node tests/benchmark-desktop.mjs",
     "benchmark:codegraph": "node --experimental-strip-types tests/benchmark-codegraph.mjs",
@@ -28,6 +31,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm format:check"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "typescript": "6.0.3"

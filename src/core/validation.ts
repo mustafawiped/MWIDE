@@ -94,8 +94,15 @@ export function parseCatalogItem(value: unknown): Omit<CatalogItem, 'id'> & { id
     kind: input.kind,
     name: text(input.name, 'Catalog name', 120, true),
     description: text(input.description, 'Catalog description', 4_000, true),
-    instructions: text(input.instructions, 'Catalog instructions', 16_000, true),
+    instructions: text(
+      input.instructions,
+      'Catalog instructions',
+      input.libraryId ? 128_000 : 16_000,
+      true,
+    ),
   }
+  if (input.libraryId !== undefined)
+    item.libraryId = identifier(input.libraryId, 'Library entry ID')
   if (input.id !== undefined) item.id = identifier(input.id, 'Catalog ID')
   return item
 }

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ModelProvider } from '../core/model.ts'
 import { WorkspaceService } from '../core/workspace.ts'
@@ -19,6 +19,10 @@ import { FolderIndex } from './folder-index.ts'
 import { parseCodeGraphQuery } from './codegraph-query.ts'
 import { batchChatEvents } from './chat-events.ts'
 import { WorkspaceStore } from './workspace-store.ts'
+import { ToolLibrary } from './tool-library.ts'
+import type { LibraryPack } from './tool-library.ts'
+import { inspectLibraryMcp } from './mcp-inspector.ts'
+import libraryPackFile from '../../resources/tool-library-pack.json?asset'
 
 interface WorkspaceRuntime {
   dispose(): void
@@ -30,6 +34,9 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
   let startupError: Error | undefined
   let codex: CodexProvider | undefined
   let indexOperation: AbortController | undefined
+  let libraryOperation: AbortController | undefined
+  let library: ToolLibrary | undefined
+  let libraryError: unknown
   const ollamaProviders = new Map<string, OllamaProvider>()
   const selectedFolders = new Set<string>()
   const directory = app.getPath('userData')
@@ -79,6 +86,19 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
     )
   }
 
+  // Installing a new reviewed pack imports it once, without changing project selections.
+  // Library damage must never prevent access to personal projects and conversations.
+  try {
+    const pack = JSON.parse(await readFile(libraryPackFile, 'utf8')) as LibraryPack
+    library = new ToolLibrary(join(await realpath(directory), 'tool-library'), pack)
+    if (service && (await library.needsCatalogImport())) {
+      await service.importToolLibrary(await library.catalog())
+      await library.markCatalogImported()
+    }
+  } catch (error) {
+    libraryError = error
+  }
+
   function authorize(event: IpcMainInvokeEvent): void {
     if (
       event.sender.isDestroyed() ||
@@ -97,6 +117,39 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
     switch (method) {
       case 'getState':
         return service.getState()
+      case 'getToolLibrary':
+        if (!library || libraryError)
+          throw libraryError ?? new Error('The reviewed tool library is unavailable.')
+        return library.state()
+      case 'importToolLibrary': {
+        if (!library || libraryError)
+          throw libraryError ?? new Error('The reviewed tool library is unavailable.')
+        const next = await service.importToolLibrary(await library.catalog())
+        await library.markCatalogImported()
+        return next
+      }
+      case 'inspectLibraryMcp': {
+        if (!library || libraryError)
+          throw libraryError ?? new Error('The reviewed tool library is unavailable.')
+        if (libraryOperation) throw new Error('A library connection check is already running.')
+        const request = requireRecord(input)
+        const id = requireId(request.id)
+        let root: string | undefined
+        if (request.projectId !== undefined) {
+          const projectId = requireId(request.projectId)
+          root = (await service.getState()).projects.find(
+            (project) => project.id === projectId,
+          )?.folderPath
+          if (!root) throw new Error('Select a saved project with a folder.')
+        }
+        const controller = new AbortController()
+        libraryOperation = controller
+        try {
+          return await inspectLibraryMcp(library, id, root, controller.signal)
+        } finally {
+          if (libraryOperation === controller) libraryOperation = undefined
+        }
+      }
       case 'saveSettings':
         return service.saveSettings(input)
       case 'inspectProvider': {
@@ -195,6 +248,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
       case 'cancelMessage':
         return service.cancelMessage(requireId(input))
       case 'cancelOperation':
+        libraryOperation?.abort(new DOMException('Connection check cancelled.', 'AbortError'))
         indexOperation?.abort(new DOMException('Project indexing cancelled.', 'AbortError'))
         return service.cancelOperation()
       default:
@@ -207,6 +261,7 @@ export async function registerWorkspace(rendererUrl: string): Promise<WorkspaceR
       ipcMain.removeHandler('mwide:request')
       service?.dispose()
       indexOperation?.abort()
+      libraryOperation?.abort()
       delivery.dispose()
       folderIndex.dispose()
       codex?.dispose()

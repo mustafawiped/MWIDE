@@ -7,6 +7,40 @@ import type { GenerationRequest, ModelProvider } from '../src/core/model.ts'
 import type { ChatEvent, Conversation, WorkspaceState } from '../src/shared/contracts.ts'
 import { contextInputBytes } from '../src/core/memory.ts'
 
+test('reviewed library import is idempotent, preserves project selections, and keeps source instructions immutable', async () => {
+  const fixture = setup()
+  const { project, conversation } = await newChat(fixture)
+  const instructions = `Reviewed coding procedure\n${'Full source detail. '.repeat(1200)}`
+  const imported = {
+    id: 'library-code-review',
+    libraryId: 'code-review',
+    kind: 'skill' as const,
+    name: 'Code review',
+    description: 'Review a patch.',
+    instructions,
+  }
+  await fixture.service.importToolLibrary([imported])
+  const state = await fixture.service.importToolLibrary([imported])
+  assert.equal(state.catalog.length, 1)
+  assert.equal(state.catalog[0].instructions, instructions)
+  assert.deepEqual(state.projects[0], project)
+  await assert.rejects(
+    fixture.service.saveCatalogItem({ ...imported, instructions: 'Replace provenance' }),
+    /reviewed source/,
+  )
+  await fixture.service.sendMessage({
+    conversationId: conversation.id,
+    content: 'Continue the project',
+  })
+  assert.doesNotMatch(fixture.requests.at(-1)!.instructions, /Reviewed coding procedure/)
+  await fixture.service.updateProject({ ...project, catalogIds: [imported.id] })
+  await fixture.service.sendMessage({ conversationId: conversation.id, content: 'Review the code' })
+  assert.ok(fixture.requests.at(-1)!.instructions.includes(instructions))
+  await fixture.service.removeCatalogItem(imported.id)
+  assert.deepEqual(fixture.store.state.projects[0].catalogIds, [])
+  assert.equal(fixture.store.state.projects[0].description, brief.description)
+})
+
 const brief = {
   name: 'MWIDE test',
   description: 'Preserve this entire project purpose 🧭',

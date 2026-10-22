@@ -4,7 +4,7 @@
 
 MWIDE is a desktop workspace for project-based prompts, conversations, MCP servers, and Skills. It preserves project purpose, architecture, and rules across chats, with user-controlled tool defaults and model recommendations.
 
-Create projects, manage a personal MCP/Skill catalog, request model recommendations, and chat through Codex app-server or local Ollama. Conversations and automatic cross-chat memory are saved locally. Link a project folder to include a persistent code index in chats. MCP server execution and package installation are not enabled yet.
+Create projects, manage a personal MCP/Skill catalog, request model recommendations, and chat through Codex app-server or local Ollama. Conversations and automatic cross-chat memory are saved locally. Link a project folder to include a persistent code index in chats. The reviewed library installs 70 Skills and 30 MCP configurations, with source, version, license and setup details. MCP connection checks list capabilities; AI tool invocation and execution of Skill scripts remain separate milestones.
 
 ## Development
 
@@ -20,6 +20,7 @@ pnpm check
 pnpm test
 pnpm build
 pnpm test:desktop
+pnpm test:library
 ```
 
 For repeatable context and long-chat performance experiments, run `pnpm benchmark` after building. Reports stay in `.mwide/benchmarks/`. See [performance measurements and limits](docs/performance.md).
@@ -34,5 +35,7 @@ Built with Electron, React, TypeScript, and electron-vite in a single pnpm packa
 
 - [Product scope](docs/product-scope.md)
 - [Architecture](docs/architecture.md)
+- [Reviewed tool library and installation](docs/tool-library.md)
+- [Tool library validation](docs/tool-library-validation.md)
 - [Code graph design and reference](docs/codegraph-design.md)
 - [Development guidance](AGENTS.md)

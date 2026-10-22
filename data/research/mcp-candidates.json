@@ -1,0 +1,1285 @@
+{
+  "schemaVersion": 1,
+  "target": "MWIDE managed catalog only",
+  "verifiedAt": "2026-10-23",
+  "notice": "Research recipes only. None of these entries is installed, configured, authorized or connected by this manifest. Source reference commits identify documentation snapshots, not necessarily npm release build commits. Package versions and integrity values pin package artifacts; remote server versions cannot be pinned. All tool execution remains disabled until separate host configuration and project-scoped authorization.",
+  "exclusions": [
+    {
+      "id": "vercel-remote",
+      "reason": "Official remote server restricts client access to approved clients; MWIDE is not listed."
+    },
+    {
+      "id": "figma-remote",
+      "reason": "Official docs require approval/waitlist for new MCP clients; no MWIDE approval is established."
+    },
+    {
+      "id": "aws-cdk",
+      "reason": "Deprecated by AWS in favor of aws-iac-mcp-server."
+    },
+    {
+      "id": "prisma-old-mcp",
+      "reason": "github.com/prisma/mcp is archived; do not install that deprecated server."
+    },
+    {
+      "id": "reference-postgres-sqlite",
+      "reason": "Archived reference implementations omitted rather than presenting deprecated database servers as maintained."
+    }
+  ],
+  "entries": [
+    {
+      "id": "playwright",
+      "kind": "mcp",
+      "name": "Playwright",
+      "description": "Browser automation with accessibility snapshots for web development and end-to-end testing.",
+      "tags": ["coding", "testing", "browser"],
+      "source": {
+        "repository": "https://github.com/microsoft/playwright-mcp",
+        "referenceCommit": "0c4107acbecb75472b23c05c0e42471a0011874f",
+        "license": "Apache-2.0",
+        "docs": "https://playwright.dev/docs/getting-started-mcp"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@playwright/mcp",
+        "version": "0.0.83",
+        "tarball": "https://registry.npmjs.org/@playwright/mcp/-/mcp-0.0.83.tgz",
+        "integrity": "sha512-oNcl+Ae2/IAjhfPeP46BfIkSakfmprY+aOtkv5MjrQ4lPav4/yNtPhL0iq8SlIM90oApWgBDUxaNKvktazUKOg==",
+        "entrypoint": "cli.js",
+        "engines": {
+          "node": ">=18"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/cli.js", "--isolated", "--headless"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["browser", "network", "filesystem-write"],
+      "setup": [
+        "Install the pinned package in MWIDE managed storage.",
+        "Install the matching Playwright Chromium browser or select a supported installed browser.",
+        "Use an isolated browser profile; signing into websites is a separate user action."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "chrome-devtools",
+      "kind": "mcp",
+      "name": "Chrome DevTools",
+      "description": "Inspect browser runtime, network activity and performance while debugging web applications.",
+      "tags": ["coding", "debugging", "performance"],
+      "source": {
+        "repository": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+        "referenceCommit": "106d6728583e3dfb18dc34ce27fc9b7c1151c86e",
+        "license": "Apache-2.0",
+        "docs": "https://github.com/ChromeDevTools/chrome-devtools-mcp"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "chrome-devtools-mcp",
+        "version": "1.12.0",
+        "tarball": "https://registry.npmjs.org/chrome-devtools-mcp/-/chrome-devtools-mcp-1.12.0.tgz",
+        "integrity": "sha512-lAGpH0zXT1ZdaPefP1KK/MvxwihOlu7VGQ7p4wbhD9OhN17vUC4KWk/ImUYR9DE4s+7r4r0ySV4xr2OkTa7ZMA==",
+        "entrypoint": "build/src/bin/chrome-devtools-mcp.js",
+        "engines": {
+          "node": "^20.19.0 || ^22.12.0 || >=23"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": [
+          "${packageRoot}/build/src/bin/chrome-devtools-mcp.js",
+          "--no-usage-statistics",
+          "--isolated",
+          "--headless"
+        ],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["browser", "network"],
+      "setup": [
+        "Install the pinned package in MWIDE managed storage.",
+        "A compatible Chrome browser must be installed.",
+        "Use an isolated profile; usage statistics are disabled in this recipe."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "context7",
+      "kind": "mcp",
+      "name": "Context7",
+      "description": "Find current library documentation and version-specific code examples.",
+      "tags": ["coding", "documentation", "libraries"],
+      "source": {
+        "repository": "https://github.com/upstash/context7",
+        "referenceCommit": "d980242a5b04be30ae8804124a8be259bcc2a227",
+        "license": "MIT",
+        "docs": "https://github.com/upstash/context7"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@upstash/context7-mcp",
+        "version": "4.4.4",
+        "tarball": "https://registry.npmjs.org/@upstash/context7-mcp/-/context7-mcp-4.4.4.tgz",
+        "integrity": "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==",
+        "entrypoint": "dist/index.js",
+        "engines": {
+          "node": ">=20.18.1"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.js"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "api-key",
+        "required": false,
+        "env": ["CONTEXT7_API_KEY"],
+        "description": "A free Context7 API key is recommended for higher rate limits; anonymous use is limited."
+      },
+      "requiresProject": false,
+      "access": ["network"],
+      "setup": [
+        "Install the exact package into MWIDE managed storage with lifecycle scripts disabled.",
+        "Use the installed Node entry point; do not use npx to silently download a different version."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "mongodb",
+      "kind": "mcp",
+      "name": "MongoDB",
+      "description": "Inspect MongoDB collections, schemas and queries using the official MongoDB server.",
+      "tags": ["coding", "database", "mongodb"],
+      "source": {
+        "repository": "https://github.com/mongodb-js/mongodb-mcp-server",
+        "referenceCommit": "7af9f528bea491d05a05f02486c3a5c0730af3c2",
+        "license": "Apache-2.0",
+        "docs": "https://github.com/mongodb-js/mongodb-mcp-server"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "mongodb-mcp-server",
+        "version": "3.1.0",
+        "tarball": "https://registry.npmjs.org/mongodb-mcp-server/-/mongodb-mcp-server-3.1.0.tgz",
+        "integrity": "sha512-sqevTzO/CvrefKDiRmV9CgeNlBq8qLLWoofh5qBJmR+iXSNLexo0RrGkNnomh5LSuJMbSDmrQfUr5oiE1ZiDtg==",
+        "entrypoint": "dist/esm/index.js",
+        "engines": {
+          "node": "^20.19.0 || ^22.13.0 || >= 24.0.0"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/esm/index.js", "--readOnly"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "connection-string",
+        "required": true,
+        "env": ["MDB_MCP_CONNECTION_STRING"],
+        "description": "Provide a project-specific MongoDB connection string with least-privilege credentials."
+      },
+      "requiresProject": false,
+      "access": ["network", "database-read"],
+      "setup": [
+        "Install the pinned package.",
+        "Configure a separate database connection in MWIDE; inherited application credentials are not used.",
+        "This recipe enables read-only server mode."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "netlify",
+      "kind": "mcp",
+      "name": "Netlify",
+      "description": "Inspect sites, deployments and build logs with the official Netlify integration.",
+      "tags": ["coding", "deployment", "hosting"],
+      "source": {
+        "repository": "https://github.com/netlify/netlify-mcp",
+        "referenceCommit": "c48b528aa37d9423c67c45727bf17d8f40a7c8e8",
+        "license": "ISC",
+        "docs": "https://github.com/netlify/netlify-mcp"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@netlify/mcp",
+        "version": "1.20.0",
+        "tarball": "https://registry.npmjs.org/@netlify/mcp/-/mcp-1.20.0.tgz",
+        "integrity": "sha512-xqPzP4Hg9wuMDpiFC+mhYpPQnt12VyKJJDCpxvgOfiD4gzVg1IC2CUmq/re6Xsu+pWeWouc6ogrr3I9uM1alDw==",
+        "entrypoint": "dist/netlify-mcp.js",
+        "engines": {}
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/netlify-mcp.js"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "api-key",
+        "required": true,
+        "env": ["NETLIFY_PERSONAL_ACCESS_TOKEN"],
+        "description": "Use a Netlify personal access token scoped to the intended account; deployment tools may write resources."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write", "filesystem-read"],
+      "setup": [
+        "Install the exact package into MWIDE managed storage with lifecycle scripts disabled.",
+        "Use the installed Node entry point; do not use npx to silently download a different version."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "filesystem",
+      "kind": "mcp",
+      "name": "Filesystem",
+      "description": "Read and edit files only under a selected project directory.",
+      "tags": ["coding", "files", "workspace"],
+      "source": {
+        "repository": "https://github.com/modelcontextprotocol/servers",
+        "referenceCommit": "51b6382a3e827aceb6bce430b1208d69b93d95ea",
+        "license": "Apache-2.0 and MIT per-file; see upstream LICENSE",
+        "docs": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@modelcontextprotocol/server-filesystem",
+        "version": "2.0.0",
+        "tarball": "https://registry.npmjs.org/@modelcontextprotocol/server-filesystem/-/server-filesystem-2.0.0.tgz",
+        "integrity": "sha512-JT+bt9wrNIMqhGvOr49vEE9NpbkBxdjQxyLVqh3lYHsB2zGgbzePmDOGrm1glBT1DPR5YvkM6h/NXztWSRhywg==",
+        "entrypoint": "dist/index.js",
+        "engines": {
+          "node": ">=24"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.js", "${projectRoot}"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["filesystem-read", "filesystem-write"],
+      "setup": [
+        "Save a project folder before starting this server.",
+        "Pass only the validated project root as an allowed directory.",
+        "Selecting this server does not authorize arbitrary file edits; the host must gate tool calls."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "knowledge-memory",
+      "kind": "mcp",
+      "name": "Knowledge Graph Memory",
+      "description": "Keep explicit project observations and entity relationships in a separate local memory file.",
+      "tags": ["coding", "memory", "architecture"],
+      "source": {
+        "repository": "https://github.com/modelcontextprotocol/servers",
+        "referenceCommit": "51b6382a3e827aceb6bce430b1208d69b93d95ea",
+        "license": "Apache-2.0 and MIT per-file; see upstream LICENSE",
+        "docs": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@modelcontextprotocol/server-memory",
+        "version": "2.0.0",
+        "tarball": "https://registry.npmjs.org/@modelcontextprotocol/server-memory/-/server-memory-2.0.0.tgz",
+        "integrity": "sha512-h+oxQCpK6FOuhlPB9hAcSihAAahcnijuGTZGcXStGOL4UzFYB4ap+pvtSelxchkZlz7tnpY/e0sONaAs24Rurw==",
+        "entrypoint": "dist/index.js",
+        "engines": {
+          "node": ">=24"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.js"],
+        "env": {
+          "MEMORY_FILE_PATH": "${managedData}/memory.jsonl"
+        },
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["managed-storage-read", "managed-storage-write"],
+      "setup": [
+        "Use one MWIDE-managed memory file per project.",
+        "This MCP memory is separate from MWIDE conversation optimization and does not replace canonical project context."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "sequential-thinking",
+      "kind": "mcp",
+      "name": "Sequential Thinking",
+      "description": "Structure multi-step debugging and architectural reasoning through an explicit planning tool.",
+      "tags": ["coding", "planning", "architecture"],
+      "source": {
+        "repository": "https://github.com/modelcontextprotocol/servers",
+        "referenceCommit": "51b6382a3e827aceb6bce430b1208d69b93d95ea",
+        "license": "Apache-2.0 and MIT per-file; see upstream LICENSE",
+        "docs": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@modelcontextprotocol/server-sequential-thinking",
+        "version": "2.0.0",
+        "tarball": "https://registry.npmjs.org/@modelcontextprotocol/server-sequential-thinking/-/server-sequential-thinking-2.0.0.tgz",
+        "integrity": "sha512-LAljkLByTHuOOPoQHAGNX5EiUJAvYuuTG7yEvdK5pRg7s7oxchNh8LwSkcuW3Y8bvQk4uZgjbjH3x7rNKpJ3Iw==",
+        "entrypoint": "dist/index.js",
+        "engines": {
+          "node": ">=24"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.js"],
+        "env": {
+          "DISABLE_THOUGHT_LOGGING": "true"
+        },
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": [],
+      "setup": [
+        "Install the pinned package.",
+        "This is a planning aid, not an independent reasoning model or a guarantee of correct results.",
+        "Thought logging is disabled in this recipe."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "next-devtools",
+      "kind": "mcp",
+      "name": "Next.js DevTools",
+      "description": "Inspect routes, live errors and development runtime from a running Next.js application.",
+      "tags": ["coding", "nextjs", "debugging"],
+      "source": {
+        "repository": "https://github.com/vercel/next-devtools-mcp",
+        "referenceCommit": "1e8dcfa4789777901144b5d9710137f0eff72036",
+        "license": "MIT",
+        "docs": "https://github.com/vercel/next-devtools-mcp"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "next-devtools-mcp",
+        "version": "0.4.0",
+        "tarball": "https://registry.npmjs.org/next-devtools-mcp/-/next-devtools-mcp-0.4.0.tgz",
+        "integrity": "sha512-PTIoi+TihyztSTPkl+YIesL81wU3pRDo6QCg1wgjvLGfBlXv3yamvQyoI8j/I2t7gqDStXoa7jtn/YUdvcBQuw==",
+        "entrypoint": "dist/index.js",
+        "engines": {}
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.js"],
+        "env": {
+          "NEXT_TELEMETRY_DISABLED": "1"
+        },
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["loopback-network", "browser", "filesystem-read"],
+      "setup": [
+        "Run in the selected Next.js project.",
+        "Runtime inspection requires a running Next.js 16+ development server; MWIDE does not start it during connection checks.",
+        "Telemetry is disabled in this recipe."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "azure-devops",
+      "kind": "mcp",
+      "name": "Azure DevOps",
+      "description": "Work with Azure DevOps repositories, work items, pipelines and tests.",
+      "tags": ["coding", "repositories", "ci"],
+      "source": {
+        "repository": "https://github.com/microsoft/azure-devops-mcp",
+        "referenceCommit": "3ee829cb41536fd29aabfb27954fb6331b5e69ff",
+        "license": "MIT",
+        "docs": "https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@azure-devops/mcp",
+        "version": "2.11.0",
+        "tarball": "https://registry.npmjs.org/@azure-devops/mcp/-/mcp-2.11.0.tgz",
+        "integrity": "sha512-sxc62at/r5ur7rvFDsqNC4IP52EqVelY1c0+7kBp+H+I5rrz4Fd8ovnrbmi+lvKfG3Vv9bqdsLGfo+/EejXf7g==",
+        "entrypoint": "dist/index.js",
+        "engines": {}
+      },
+      "config": {
+        "command": "node",
+        "args": [
+          "${packageRoot}/dist/index.js",
+          "${azureDevOpsOrganization}",
+          "-d",
+          "core",
+          "repositories",
+          "pipelines"
+        ],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "interactive-browser",
+        "required": true,
+        "description": "Choose an Azure DevOps organization, then sign in using a Microsoft account that can access it."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Install the exact package into MWIDE managed storage with lifecycle scripts disabled.",
+        "Use the installed Node entry point; do not use npx to silently download a different version."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23",
+      "parameters": [
+        {
+          "name": "azureDevOpsOrganization",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "maintenance": "Local stdio server remains supported; vendor now recommends its hosted server for new features."
+    },
+    {
+      "id": "shadcn",
+      "kind": "mcp",
+      "name": "shadcn/ui",
+      "description": "Browse and inspect registry components for React interface implementation.",
+      "tags": ["coding", "react", "components"],
+      "source": {
+        "repository": "https://github.com/shadcn-ui/ui",
+        "referenceCommit": "3d98900e9b73c45f035f8109e9d41ba6a51685e7",
+        "license": "MIT",
+        "docs": "https://ui.shadcn.com/docs/mcp"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "shadcn",
+        "version": "4.22.1",
+        "tarball": "https://registry.npmjs.org/shadcn/-/shadcn-4.22.1.tgz",
+        "integrity": "sha512-LbB4Lro+b0qSVki/tgL5edtKylEnXe1ppxMJC12d7NHPgaT+eSgJGMQULwP72V7X9tbiUq7xfx3VDAfB7jdGoA==",
+        "entrypoint": "dist/index.js",
+        "engines": {
+          "node": ">=20.18.1"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.js", "mcp"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["network", "filesystem-read", "filesystem-write"],
+      "setup": [
+        "Run in a selected project with components.json when project registries are needed.",
+        "Private registries require their own explicitly supplied credentials.",
+        "Component installation is a separate write action and is not executed during connection checks."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "svelte",
+      "kind": "mcp",
+      "name": "Svelte",
+      "description": "Use official Svelte documentation and static analysis tools to improve Svelte code.",
+      "tags": ["coding", "svelte", "validation"],
+      "source": {
+        "repository": "https://github.com/sveltejs/ai-tools",
+        "referenceCommit": "b2589f890e9c5c4a788a557315aa5012d1fba4ba",
+        "license": "MIT",
+        "docs": "https://svelte.dev/docs/ai/local-setup"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@sveltejs/mcp",
+        "version": "0.1.27",
+        "tarball": "https://registry.npmjs.org/@sveltejs/mcp/-/mcp-0.1.27.tgz",
+        "integrity": "sha512-8kGpkqRqjYA+BEZLkZ3cuBB2mTC+ZdXYseXvQh9MJc+k6hctg2nOEHUHe1e+i9K0W2hMRAjg+a7bs38eoi3n0w==",
+        "entrypoint": "dist/index.mjs",
+        "engines": {}
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/dist/index.mjs"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["network"],
+      "setup": [
+        "Install the pinned package.",
+        "Use the maintained local stdio server; this entry is separate from Svelte agent skills."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "angular",
+      "kind": "mcp",
+      "name": "Angular CLI",
+      "description": "Inspect Angular workspaces and official guidance through Angular CLI MCP read-only mode.",
+      "tags": ["coding", "angular", "workspace"],
+      "source": {
+        "repository": "https://github.com/angular/angular-cli",
+        "referenceCommit": "be15160ff0ecb7ea0c74acdead54644a2918a074",
+        "license": "MIT",
+        "docs": "https://angular.dev/ai/mcp"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "npm",
+        "name": "@angular/cli",
+        "version": "21.2.28",
+        "tarball": "https://registry.npmjs.org/@angular/cli/-/cli-21.2.28.tgz",
+        "integrity": "sha512-5PDbWyivOzobaVT1oVqEsOaDjW/honAKCjten4dlWO1q8O2/GKcLa29niaNnuSX3BKN6TsYmSo2JmeOuDXWhDg==",
+        "entrypoint": "bin/ng.js",
+        "engines": {
+          "npm": "^6.11.0 || ^7.5.6 || >=8.0.0",
+          "node": "^20.19.0 || ^22.12.0 || >=24.0.0",
+          "yarn": ">= 1.13.0"
+        }
+      },
+      "config": {
+        "command": "node",
+        "args": ["${packageRoot}/bin/ng.js", "mcp", "--read-only"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["network", "filesystem-read"],
+      "setup": [
+        "Install Angular CLI 21.2.28, selected for compatibility with MWIDE Node 24.11.1.",
+        "Run in the chosen Angular project.",
+        "Read-only mode excludes project mutation and run-target tools; newer Angular CLI 22 requires a newer Node release."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "redis",
+      "kind": "mcp",
+      "name": "Redis",
+      "description": "Inspect Redis keys and data structures through the official Redis MCP server.",
+      "tags": ["coding", "database", "cache"],
+      "source": {
+        "repository": "https://github.com/redis/mcp-redis",
+        "referenceCommit": "b814c36c6309d5e2e5ea238b86ff25f60edc0ce8",
+        "license": "MIT",
+        "docs": "https://github.com/redis/mcp-redis"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "pypi",
+        "name": "redis-mcp-server",
+        "version": "0.5.1",
+        "metadataUrl": "https://pypi.org/pypi/redis-mcp-server/0.5.1/json",
+        "requiresPython": ">=3.10",
+        "entrypoint": "redis-mcp-server"
+      },
+      "config": {
+        "command": "uv",
+        "args": ["tool", "run", "--from", "redis-mcp-server==0.5.1", "redis-mcp-server"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "database-credentials",
+        "required": true,
+        "env": ["REDIS_HOST", "REDIS_PORT", "REDIS_USERNAME", "REDIS_PWD"],
+        "description": "Configure a development Redis database and least-privilege ACL user. The server also exposes write operations."
+      },
+      "requiresProject": false,
+      "access": ["network", "database-read", "database-write"],
+      "setup": [
+        "Install this exact package into a dedicated MWIDE Python environment using uv or pip.",
+        "Use the installed executable for connection checks; the uv recipe is the vendor-compatible fallback."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "serena",
+      "kind": "mcp",
+      "name": "Serena",
+      "description": "Navigate symbols and references with language-server-backed semantic coding tools.",
+      "tags": ["coding", "symbols", "refactoring"],
+      "source": {
+        "repository": "https://github.com/oraios/serena",
+        "referenceCommit": "abb0a0f01b94bc8050086f0fb860077d17730324",
+        "license": "GPL-3.0-or-later",
+        "docs": "https://oraios.github.io/serena/02-usage/030_clients.html"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "pypi",
+        "name": "serena-agent",
+        "version": "2.1.0",
+        "metadataUrl": "https://pypi.org/pypi/serena-agent/2.1.0/json",
+        "requiresPython": "<3.15,>=3.11",
+        "entrypoint": "serena"
+      },
+      "config": {
+        "command": "uv",
+        "args": [
+          "tool",
+          "run",
+          "--from",
+          "serena-agent==2.1.0",
+          "serena",
+          "start-mcp-server",
+          "--context",
+          "desktop-app",
+          "--project",
+          "${projectRoot}",
+          "--enable-web-dashboard",
+          "false",
+          "--open-web-dashboard",
+          "false",
+          "--enable-gui-log-window",
+          "false"
+        ],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["filesystem-read", "filesystem-write", "process-execution"],
+      "setup": [
+        "Install the pinned package into a dedicated MWIDE Python environment; the reviewed proxy_tools wheel helper handles its source-only legacy dependency without running a build backend.",
+        "Choose a project and install any language server/runtime required by its language.",
+        "Serena can expose editing and command tools; no automatic invocation is authorized by catalog selection."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "fetch",
+      "kind": "mcp",
+      "name": "Fetch",
+      "description": "Fetch public web documentation and convert useful page content for reference.",
+      "tags": ["coding", "documentation", "web"],
+      "source": {
+        "repository": "https://github.com/modelcontextprotocol/servers",
+        "referenceCommit": "51b6382a3e827aceb6bce430b1208d69b93d95ea",
+        "license": "MIT",
+        "docs": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "pypi",
+        "name": "mcp-server-fetch",
+        "version": "2026.10.19",
+        "metadataUrl": "https://pypi.org/pypi/mcp-server-fetch/2026.10.19/json",
+        "requiresPython": ">=3.10",
+        "entrypoint": "mcp-server-fetch"
+      },
+      "config": {
+        "command": "uv",
+        "args": ["tool", "run", "--from", "mcp-server-fetch==2026.10.19", "mcp-server-fetch"],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["network"],
+      "setup": [
+        "Install the pinned package.",
+        "Connection checks discover tools only and do not fetch user-provided URLs.",
+        "Fetched material is untrusted reference data; the host must restrict sensitive and private network destinations."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "git",
+      "kind": "mcp",
+      "name": "Git",
+      "description": "Read repository history and diffs and perform explicit Git workspace operations.",
+      "tags": ["coding", "git", "review"],
+      "source": {
+        "repository": "https://github.com/modelcontextprotocol/servers",
+        "referenceCommit": "51b6382a3e827aceb6bce430b1208d69b93d95ea",
+        "license": "MIT",
+        "docs": "https://github.com/modelcontextprotocol/servers/tree/main/src/git"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "pypi",
+        "name": "mcp-server-git",
+        "version": "2026.10.19",
+        "metadataUrl": "https://pypi.org/pypi/mcp-server-git/2026.10.19/json",
+        "requiresPython": ">=3.10",
+        "entrypoint": "mcp-server-git"
+      },
+      "config": {
+        "command": "uv",
+        "args": [
+          "tool",
+          "run",
+          "--from",
+          "mcp-server-git==2026.10.19",
+          "mcp-server-git",
+          "--repository",
+          "${projectRoot}"
+        ],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["filesystem-read", "filesystem-write", "git-operations"],
+      "setup": [
+        "Install the pinned package and ensure the Git executable is available.",
+        "Select a repository folder.",
+        "The upstream server includes mutating Git tools; checking its connection does not call those tools."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23",
+      "compatibility": "Upstream declares mcp Python SDK >=1.29.0,<2; keep its own dependency environment separate from the MWIDE MCP client."
+    },
+    {
+      "id": "aws-iac",
+      "kind": "mcp",
+      "name": "AWS IaC",
+      "description": "Validate CloudFormation templates and consult official CDK and infrastructure guidance.",
+      "tags": ["coding", "aws", "infrastructure"],
+      "source": {
+        "repository": "https://github.com/awslabs/mcp",
+        "referenceCommit": "b054d19693d02a97b6f2e88d26d0612cfbe24f11",
+        "license": "Apache-2.0",
+        "docs": "https://awslabs.github.io/mcp/servers/aws-iac-mcp-server"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "pypi",
+        "name": "awslabs.aws-iac-mcp-server",
+        "version": "1.0.26",
+        "metadataUrl": "https://pypi.org/pypi/awslabs.aws-iac-mcp-server/1.0.26/json",
+        "requiresPython": ">=3.10",
+        "entrypoint": "awslabs.aws-iac-mcp-server.exe"
+      },
+      "config": {
+        "command": "uv",
+        "args": [
+          "tool",
+          "run",
+          "--from",
+          "awslabs.aws-iac-mcp-server==1.0.26",
+          "awslabs.aws-iac-mcp-server.exe"
+        ],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "aws-profile",
+        "required": false,
+        "env": ["AWS_PROFILE", "AWS_REGION"],
+        "description": "Local validation needs no AWS permissions; live deployment troubleshooting requires an explicitly configured AWS profile and read permissions."
+      },
+      "requiresProject": false,
+      "access": ["network", "filesystem-read", "aws-api"],
+      "setup": [
+        "Install the maintained AWS IaC server rather than the deprecated AWS CDK or CloudFormation MCP packages.",
+        "Use a dedicated Python environment and the Windows .exe entry point.",
+        "Configure AWS credentials only when live troubleshooting is needed."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "codebase-memory",
+      "kind": "mcp",
+      "name": "Codebase Memory",
+      "description": "Query persistent code symbols, structural relationships and change impact through the native Codebase Memory MCP server.",
+      "tags": ["coding", "code-intelligence", "architecture"],
+      "source": {
+        "repository": "https://github.com/DeusData/codebase-memory-mcp",
+        "referenceCommit": "8972ea69c6ad94b1ef1d4ffbf0a92d78d2db1798",
+        "license": "MIT",
+        "docs": "https://github.com/DeusData/codebase-memory-mcp/blob/v0.11.0/README.md"
+      },
+      "transport": "stdio",
+      "package": {
+        "registry": "native-existing",
+        "name": "codebase-memory-mcp",
+        "version": "0.11.0",
+        "platform": "win32-x64",
+        "sha256": "7edcd3807ebcfd85ec1968985964080f2589748da2fc3c7ce9261eebab31ff04",
+        "executable": "codebase-memory-mcp.exe"
+      },
+      "config": {
+        "command": "${verifiedNativeExecutable}",
+        "args": [],
+        "env": {},
+        "cwd": "${projectRoot}"
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": true,
+      "access": ["filesystem-read", "managed-storage-write", "process-execution"],
+      "setup": [
+        "Locate the existing native executable and verify its exact version and SHA-256 before configuring it for MWIDE.",
+        "Use a private MWIDE data/config directory; do not modify Codex configuration.",
+        "Upstream latest is 0.12.1; the verified installed executable is 0.11.0 and is not represented as upgraded.",
+        "The npm wrapper requires a postinstall binary download; ignore-scripts installation alone would not make it operational."
+      ],
+      "state": "recipe-only",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "github",
+      "kind": "mcp",
+      "name": "GitHub",
+      "description": "Inspect repositories, pull requests, issues and CI through GitHub’s official hosted MCP server.",
+      "tags": ["coding", "repositories", "review"],
+      "source": {
+        "repository": "https://github.com/github/github-mcp-server",
+        "referenceCommit": "f38526264abb14961b32cea386e38ec6d3cf674f",
+        "license": "MIT for open-source implementation; hosted service terms apply",
+        "docs": "https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headers": {
+          "X-MCP-Readonly": "true"
+        }
+      },
+      "auth": {
+        "type": "oauth-or-pat",
+        "required": true,
+        "description": "Authorize a GitHub account or supply a fine-grained PAT through secure secret storage. This recipe requests read-only tools."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "gitlab",
+      "kind": "mcp",
+      "name": "GitLab",
+      "description": "Inspect GitLab projects, issues, merge requests and pipeline data.",
+      "tags": ["coding", "repositories", "ci"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://docs.gitlab.com/user/model_context_protocol/mcp_server/"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://gitlab.com/api/v4/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth",
+        "required": true,
+        "description": "Requires MCP access enabled for the group or instance and OAuth mcp scope, or a supported fine-grained PAT. Legacy PATs are rejected."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "sentry",
+      "kind": "mcp",
+      "name": "Sentry",
+      "description": "Investigate application errors, stack traces, releases and performance issues.",
+      "tags": ["coding", "debugging", "observability"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://mcp.sentry.dev/"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.sentry.dev/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth",
+        "required": true,
+        "description": "Authorize Sentry and scope to an organization/project when possible."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "supabase",
+      "kind": "mcp",
+      "name": "Supabase",
+      "description": "Inspect project schemas, SQL and development diagnostics through official Supabase MCP.",
+      "tags": ["coding", "database", "backend"],
+      "source": {
+        "repository": "https://github.com/supabase/mcp",
+        "referenceCommit": "4a619c13f6dd054bac4ee7fbd3757dd27509ac63",
+        "license": "Apache-2.0 for open-source implementation; hosted service terms apply",
+        "docs": "https://supabase.com/docs/guides/ai-tools/mcp"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.supabase.com/mcp?read_only=true",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth",
+        "required": true,
+        "description": "Select a development project and authorize its organization; the recipe uses read_only=true and requires project scoping before use."
+      },
+      "requiresProject": false,
+      "access": ["network", "database-read", "account-data"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23",
+      "parameters": [
+        {
+          "name": "supabaseProjectRef",
+          "required": true,
+          "secret": false,
+          "urlQuery": "project_ref"
+        }
+      ]
+    },
+    {
+      "id": "cloudflare",
+      "kind": "mcp",
+      "name": "Cloudflare API",
+      "description": "Discover and inspect Cloudflare API resources using the official Code Mode MCP server.",
+      "tags": ["coding", "cloudflare", "infrastructure"],
+      "source": {
+        "repository": "https://github.com/cloudflare/mcp",
+        "referenceCommit": "550e1be82b2227818e6b98fc32a313a59403ae3f",
+        "license": "Apache-2.0 for open-source implementation; hosted service terms apply",
+        "docs": "https://github.com/cloudflare/mcp"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.cloudflare.com/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth-or-api-token",
+        "required": true,
+        "description": "Choose explicit Cloudflare account permissions. Prefer a restricted read-only API token when exploring infrastructure."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "neon",
+      "kind": "mcp",
+      "name": "Neon Postgres",
+      "description": "Inspect Neon development databases, branches and query behavior.",
+      "tags": ["coding", "postgres", "database"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://neon.com/docs/ai/neon-mcp-server"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.neon.tech/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth",
+        "required": true,
+        "description": "Authorize Neon; database and branch creation tools can modify resources and incur service charges."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "linear",
+      "kind": "mcp",
+      "name": "Linear",
+      "description": "Inspect software issues, projects, milestones and engineering plans.",
+      "tags": ["coding", "issues", "planning"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://linear.app/docs/mcp"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.linear.app/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth-or-api-key",
+        "required": true,
+        "description": "Authorize a Linear workspace or use a restricted read-only API key. The default hosted endpoint offers read/write tools."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "posthog",
+      "kind": "mcp",
+      "name": "PostHog",
+      "description": "Investigate product errors, feature flags, experiments and analytics.",
+      "tags": ["coding", "observability", "feature-flags"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://posthog.com/docs/model-context-protocol"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.posthog.com/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "oauth",
+        "required": true,
+        "description": "Authorize the correct PostHog account and region; some optional AI-backed tools can incur PostHog AI charges."
+      },
+      "requiresProject": false,
+      "access": ["network", "account-data", "external-write"],
+      "setup": [
+        "Register this endpoint inside MWIDE only. No local server binary is installed.",
+        "Complete the provider authorization in MWIDE before a connection can be claimed.",
+        "Select project-specific tools and review write actions before invocation."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "microsoft-learn",
+      "kind": "mcp",
+      "name": "Microsoft Learn",
+      "description": "Search official Microsoft, Azure and .NET documentation and code examples.",
+      "tags": ["coding", "documentation", "dotnet"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://learn.microsoft.com/en-us/training/support/mcp"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://learn.microsoft.com/api/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["network"],
+      "setup": [
+        "Register the official hosted endpoint in MWIDE. No local installation or account authorization is needed.",
+        "Validate the connection with initialize and tools/list only."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "deepwiki",
+      "kind": "mcp",
+      "name": "DeepWiki",
+      "description": "Read generated architecture documentation and ask questions about indexed public repositories.",
+      "tags": ["coding", "architecture", "repositories"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://docs.devin.ai/work-with-devin/deepwiki-mcp"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://mcp.deepwiki.com/mcp",
+        "headers": {}
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["network"],
+      "setup": [
+        "Register the public no-auth hosted endpoint.",
+        "Use public repository names only; private repository access requires a different authenticated Devin workflow.",
+        "Treat generated documentation as secondary evidence and verify consequential claims in source."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    },
+    {
+      "id": "aws-knowledge",
+      "kind": "mcp",
+      "name": "AWS Knowledge",
+      "description": "Search current official AWS documentation, architecture guidance and regional availability.",
+      "tags": ["coding", "aws", "documentation"],
+      "source": {
+        "repository": null,
+        "referenceCommit": null,
+        "license": "Hosted service terms; no server source redistributed",
+        "docs": "https://awslabs.github.io/mcp/servers/aws-knowledge-mcp-server"
+      },
+      "transport": "streamable-http",
+      "package": null,
+      "config": {
+        "url": "https://knowledge-mcp.global.api.aws",
+        "headers": {}
+      },
+      "auth": {
+        "type": "none",
+        "required": false
+      },
+      "requiresProject": false,
+      "access": ["network"],
+      "setup": [
+        "Register the official AWS-hosted knowledge endpoint.",
+        "No AWS credentials are required for public knowledge queries; service terms still apply."
+      ],
+      "state": "recipe-only",
+      "versionPolicy": "Provider-managed unversioned hosted endpoint; client cannot pin server code.",
+      "verifiedAt": "2026-10-23"
+    }
+  ]
+}

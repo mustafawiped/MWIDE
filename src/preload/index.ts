@@ -3,6 +3,9 @@ import type { ChatEvent, DesktopBridge, WorkspaceBridge } from '../shared/contra
 
 const workspace: WorkspaceBridge = Object.freeze<WorkspaceBridge>({
   getState: () => ipcRenderer.invoke('mwide:request', 'getState'),
+  getToolLibrary: () => ipcRenderer.invoke('mwide:request', 'getToolLibrary'),
+  importToolLibrary: () => ipcRenderer.invoke('mwide:request', 'importToolLibrary'),
+  inspectLibraryMcp: (input) => ipcRenderer.invoke('mwide:request', 'inspectLibraryMcp', input),
   saveSettings: (settings) => ipcRenderer.invoke('mwide:request', 'saveSettings', settings),
   inspectProvider: (id) => ipcRenderer.invoke('mwide:request', 'inspectProvider', id),
   getCodexUsageLimits: () => ipcRenderer.invoke('mwide:request', 'getCodexUsageLimits'),

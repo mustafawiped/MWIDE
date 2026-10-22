@@ -119,12 +119,36 @@ export class WorkspaceService {
   async saveCatalogItem(input: unknown): Promise<WorkspaceState> {
     this.idle()
     const item = parseCatalogItem(input)
+    if (
+      item.libraryId ||
+      (item.id && this.store.snapshot().catalog.find((entry) => entry.id === item.id)?.libraryId)
+    )
+      throw new Error(
+        'Installed library entries retain their reviewed source. Create a custom entry to change instructions.',
+      )
     return this.change((state) => {
       if (item.id) {
         const index = state.catalog.findIndex((entry) => entry.id === item.id)
         if (index < 0) throw new Error('This catalog entry no longer exists.')
         state.catalog[index] = item as CatalogItem
       } else state.catalog.push({ ...item, id: randomUUID() })
+    })
+  }
+
+  /** Accept only the main process's verified local library; renderer supplies no bundle content. */
+  async importToolLibrary(items: CatalogItem[]): Promise<WorkspaceState> {
+    this.idle()
+    return this.change((state) => {
+      for (const item of items) {
+        const parsed = parseCatalogItem(item)
+        if (!parsed.id || !parsed.libraryId) throw new Error('Invalid installed library entry.')
+        const existing = state.catalog.find((entry) => entry.libraryId === parsed.libraryId)
+        if (!existing) {
+          if (state.catalog.some((entry) => entry.id === parsed.id))
+            throw new Error('Installed library identifier conflicts with a custom entry.')
+          state.catalog.push({ ...parsed, id: parsed.id })
+        }
+      }
     })
   }
 
