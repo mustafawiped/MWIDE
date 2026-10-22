@@ -1,5 +1,7 @@
-# MCP ve Skill kataloğu
+# MCP and Skill catalog
 
-MCP sunucularının ve Skill paketlerinin tanımları, proje konusuna göre önerileri ve kullanıcı seçimleri burada ele alınacak.
+This module covers MCP server and Skill metadata, user-defined defaults, project selections, and model recommendations.
 
-Öneri bir kurulum veya çalıştırma izni değildir. Kaynak, sürüm, erişim gereksinimleri ve proje kapsamı kullanıcıya gösterilmeli; kurulum/çalıştırma ayrı yetkili işlem olarak tasarlanmalıdır.
+Recommendations are requested through an explicit button using the project's purpose, architecture, rules, and current selections. They do not change defaults or install or execute anything automatically.
+
+Show the source, version, required access, and project scope. Installation and execution are separate authorized actions, implemented after the UI preview and provider milestones.

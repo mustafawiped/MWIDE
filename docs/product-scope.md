@@ -1,37 +1,53 @@
-# Ürün kapsamı
+# Product scope
 
 MWIDE — **Easy MCP and Skill Management**
 
-MWIDE'nin temel birimi projedir. Kullanıcı bir projenin altında promptlarını, sohbetlerini, seçtiği model bağlantılarını ve proje için etkinleştirdiği MCP/Skill araçlarını yönetir. Proje yalnız bir kod deposu olmak zorunda değildir; araştırma, içerik veya başka bir çalışma konusu da olabilir.
+MWIDE is a project-based prompt and conversation workspace with MCP and Skill management. A project can cover software, research, writing, or another topic. The product focuses on project continuity and a clear setup for models and tools.
 
-## Bu başlangıç sürümü
+## Current milestone
 
-İlk sürümün amacı, geliştirilebilir ve kontrol edilebilir bir masaüstü uygulama temeli oluşturmaktır. Model bağlantısı, çalışan sohbet, veritabanı, katalogdan kurulum veya araç çalıştırma henüz yoktur. Arayüzde gösterilen planlanan yetenekler, tamamlanmış entegrasyon anlamına gelmez.
+Build and review the UI preview first: project setup, conversation layout, context visibility, provider selection, and MCP/Skill management screens. These screens establish the intended interactions. Live model responses, durable storage, installation, and tool execution belong to subsequent backend milestones.
 
-## İlk geliştirilecek akış
+## Project setup
 
-1. Kullanıcı bir proje oluşturur ve konusunu/açıklamasını belirler.
-2. Kullanıcı ChatGPT veya yerel model bağlantısını seçer.
-3. Prompt ve sohbetler ilgili projenin altında saklanır.
-4. MWIDE, proje bağlamına uygun MCP sunucuları ve Skill paketleri önerir.
-5. Kullanıcı öneriyi inceler, seçer ve gereken erişimlere izin verir.
+Each project has:
 
-Öneri üretmek, kurulum veya çalıştırma izni değildir. Bir projenin araçları ve yetkileri başka bir projeye kendiliğinden taşınmaz. Araç kurulumu ve çalıştırması sonraki geliştirmelerde ayrı kullanıcı eylemleri olarak tasarlanmalıdır.
+- A name and a complete description of its purpose
+- Additional user rules
+- Canonical architecture notes
+- Conversations associated with that project
+- Selected MCP servers and Skills, including user-defined defaults
 
-## Sağlayıcı sırası
+The complete purpose, architecture notes, and additional rules remain separate from chat summaries. A short summary must not replace, silently shorten, or rewrite these canonical records. Users change them through explicit project editing.
 
-**Ollama:** İlk yerel model hedefidir. Model seçimi, akış halinde yanıt, isteği durdurma ve bağlantı hataları önce bu sağlayıcıyla doğrulanır. [Ollama API](https://docs.ollama.com/api/introduction)
+## Conversations and continuity
 
-**ChatGPT / Codex app-server:** ChatGPT tarafında motor olarak Codex app-server seçilmiştir. MWIDE, yerel yan süreçteki motora kendi adaptörü üzerinden bağlanacak; proje, sohbet ve katalog düzeninin sahibi olmaya devam edecektir. Şu anda gerçek app-server entegrasyonu ve Codex bağımlılığı yoktur. [Codex app-server](https://learn.chatgpt.com/docs/app-server)
+Users can start multiple chats within the same project. New chats receive the protected project context and short summaries of relevant earlier chats. Summaries capture decisions, current work, unresolved questions, and next steps. Full conversation history remains available separately once persistence is implemented.
 
-**ChatGPT hesabıyla giriş:** Motor seçiminden ayrı olarak, uygun açık kaynak ve yerel dağıtım için Sign in with ChatGPT plan kullanımı hedeflenir. Hesap girişi, kullanıcının ChatGPT'deki eski sohbetlerine erişim sağlamaz. Ücretli veya barındırılan dağıtım için izin kapsamı ayrıca doğrulanmalıdır. [OpenAI kapsamı](https://developers.openai.com/siwc/token-sharing-open-source)
+The interface should distinguish the complete project context from a generated summary, so users can inspect and correct the information carried forward. Summarization must preserve the meaning of user decisions and rules.
 
-**OpenAI API anahtarı:** ChatGPT aboneliğinden ayrı bir erişim ve ücretlendirme yoludur. Eklenirse kullanıcı bunu açıkça seçmeli; abonelik sınırına ulaşıldığında sessizce bu yola geçilmemelidir.
+## MCP and Skill choices
 
-**Sonraki bağlantılar:** LM Studio'nun OpenAI uyumlu sunucusu ve daha sonra Claude. [LM Studio API](https://lmstudio.ai/docs/developer/openai-compat)
+Users define their default MCP servers and Skills and choose which apply to a project. A dedicated recommendation button asks the selected model for suggestions based on the project's purpose, architecture, rules, and current selections.
 
-## İlk kapsamın sınırları
+Recommendations supplement the user's choices. They do not silently change defaults, install packages, start servers, or run Skills. Users review the source and required access, then explicitly choose any installation or execution action. Project permissions do not transfer automatically to another project.
 
-Tam IDE, kapsamlı kod editörü, VS Code eklenti uyumluluğu, otomatik kod deposu mimarisi üretimi, otonom ajan çalıştırma ve bulut eşitleme bu başlangıcın hedefi değildir. Sohbet devri ve daha gelişmiş proje hafızası, temel sohbet ve kalıcılık doğrulandıktan sonra ele alınır.
+## Model connections
 
-MCP/Skill yönetiminde ilk hedef, anlaşılır bir katalog, proje bazında seçim ve izinlerin görünürlüğüdür. Kullanıcının onayı olmadan paket kurulmaz, komut yürütülmez veya MCP sunucusu başlatılmaz.
+**ChatGPT through Codex app-server:** Codex app-server is the selected engine and will run as a local child process. MWIDE owns projects, conversations, context records, and catalog choices. The adapter will handle sessions, turns, streaming, cancellation, and resume. [Codex app-server](https://learn.chatgpt.com/docs/app-server)
+
+**ChatGPT authentication:** Engine selection and account authorization are separate decisions. Sign in with ChatGPT is the target plan-usage route where distribution and accounts are eligible. It does not import existing ChatGPT conversations. Paid or hosted distribution requires its own scope review. API-key access, if added, has separate API billing and must be an explicit choice. [OpenAI integration scope](https://developers.openai.com/siwc/token-sharing-open-source)
+
+**Local Ollama:** Ollama is the first independent local provider. Its connection, model selection, streaming, cancellation, and errors will be implemented through a separate adapter. [Ollama API](https://docs.ollama.com/api/introduction)
+
+LM Studio's OpenAI-compatible server and Claude are later options. [LM Studio API](https://lmstudio.ai/docs/developer/openai-compat)
+
+## Delivery order
+
+1. Implement and inspect the UI preview with realistic interaction states.
+2. Add project storage and protected purpose, architecture, and rules.
+3. Connect actual ChatGPT through Codex app-server and local Ollama.
+4. Implement user defaults, explicit model recommendations, and authorized MCP/Skill management.
+5. Add cross-chat summaries and verify that complete project context is preserved.
+
+Test, review, commit, and push each completed milestone. Keep the first release focused; a full code editor, IDE extension ecosystem, cloud sync, and autonomous repository restructuring are outside this scope.

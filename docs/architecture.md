@@ -1,45 +1,57 @@
-# Mimari yaklaşım
+# Architecture
 
-MWIDE, tek paketli bir Electron + React + TypeScript uygulamasıdır. electron-vite geliştirme ve derlemeyi, pnpm paket yönetimini sağlar. İlk temel, proje odaklı sohbet ve MCP/Skill yönetimine genişleyebilecek modül sınırlarını kurar; çalışan model veya araç entegrasyonu içermez.
+MWIDE uses Electron, React, TypeScript, electron-vite, and pnpm in a single package. UI work comes first; backend behavior is added in small, tested milestones. Apply SOLID through clear responsibilities and narrow boundaries, with minimal boilerplate.
 
-## Modül sınırları
+## Module boundaries
 
-| Konum           | Sorumluluk                                                                    |
+| Location        | Responsibility                                                                |
 | --------------- | ----------------------------------------------------------------------------- |
-| `src/main`      | Electron yaşam döngüsü, pencere ve ayrıcalıklı masaüstü işlemleri             |
-| `src/preload`   | Arayüze açılan dar ve tipli masaüstü köprüsü                                  |
-| `src/renderer`  | React arayüzü, proje ve sohbet görünümleri                                    |
-| `src/shared`    | Süreçler arasında paylaşılan veri ve iletişim sözleşmeleri                    |
-| `src/core`      | Proje, sohbet ve kullanıcı seçimlerine ait sağlayıcıdan bağımsız iş kuralları |
-| `src/providers` | Codex app-server, bağımsız Ollama ve sonraki bağlantıların adaptörleri        |
-| `src/catalog`   | MCP/Skill tanımları, proje eşleştirmesi ve öneri modeli                       |
+| `src/main`      | Electron lifecycle, windows, and privileged desktop operations                |
+| `src/preload`   | Narrow, typed bridge available to the renderer                                |
+| `src/renderer`  | Project, conversation, context, provider, and tool-management screens         |
+| `src/shared`    | Data and communication contracts shared across processes                      |
+| `src/core`      | Provider-independent project, conversation, context, and selection rules      |
+| `src/providers` | Codex app-server and independent Ollama adapters                              |
+| `src/catalog`   | MCP/Skill definitions, user defaults, project selections, and recommendations |
 
-Bu klasörler ayrı servis veya ayrı paket değildir. Bir modülün varlığı, ilgili ürün işlevinin tamamlandığı anlamına gelmez.
+These are modules within one application. Add abstractions when a concrete behavior or integration needs a boundary.
 
-## Süreçler ve veri akışı
+## Process boundary
 
-Arayüz, dosya sistemi veya kimlik bilgilerine doğrudan erişmemelidir. Gerekli masaüstü işlemleri preload üzerinden sınırlı isteklerle ana sürece iletilir. Çekirdek, sağlayıcıya özgü olayları doğrudan kullanıcı veri modeline dönüştürmek yerine ortak sözleşmeler kullanır.
+The renderer has no direct filesystem, credential, or arbitrary shell access. Desktop operations use the typed preload bridge and validated main-process handlers. Domain behavior stays independent of Electron, React, and provider-specific session formats.
 
-Model bağlantıları eklenirken kullanıcı mesajı, yanıt akışı, iptal, hata ve kullanım kaynağı ayrı ele alınmalıdır. Codex thread kimliği ile MWIDE'nin yerel proje/sohbet kimliği birbirine bağlanabilir; aynı kimlik olarak kullanılmamalıdır. Projeler, sohbet geçmişi ve MCP/Skill kataloğunun sahibi MWIDE'dir.
+Codex app-server will run as a local child process. Ollama will use its own local server connection. Credentials and process management stay outside the renderer. The current screen milestone does not implement these live connections or tool execution.
 
-SQLite sonraki kilometre taşında yerel proje ve sohbet kalıcılığı için eklenir. Bu başlangıç sürümünde veritabanı bağımlılığı veya kalıcılık garantisi yoktur.
+## Project context
 
-## Sağlayıcı yaklaşımı
+The core distinguishes three kinds of information:
 
-ChatGPT tarafında motor kararı Codex app-server'dır. MWIDE, motoru yerel bir yan süreç olarak yönetecek ve adaptörü üzerinden protokolle iletişim kuracaktır. Entegrasyonda `initialize`, `thread/start` ve `turn/start` akışı; yanıt olayları, iptal ve oturuma devam etme ele alınacaktır. Bu başlangıç sürümünde gerçek app-server bağlantısı, yan süreç yönetimi veya Codex bağımlılığı yoktur. Protokol/sürüm sabitleme ve token yenileme, entegrasyon aşamasının işleridir. [Codex app-server](https://learn.chatgpt.com/docs/app-server)
+- **Canonical project records:** name, complete purpose, architecture notes, and additional user rules
+- **Conversation records:** full messages and relevant provider session references
+- **Continuity summaries:** short generated handoffs containing decisions, progress, questions, and next steps
 
-Ollama, Codex motorundan bağımsız ilk yerel sağlayıcıdır. Yerel sunucu adresi ve model seçimi açık olmalı; bağlantı kurulamadığında kullanıcı anlaşılır bir hata görmelidir. LM Studio için OpenAI uyumlu protokol sonraki bir adaptör olarak ele alınır; iki sağlayıcının bütün yeteneklerinin aynı olduğu varsayılmaz.
+Summaries refer to canonical records; they must not replace or silently edit them. Starting a new chat preserves complete purpose and architecture. Explicit project edits update canonical records separately from summarization. MWIDE owns its project and conversation identifiers; provider session identifiers are linked references.
 
-Codex motoru seçimi, ChatGPT hesabını veya abonelik limitlerini kullanma yetkisini kendiliğinden sağlamaz. Kimlik ve abonelik yolu için hedef, uygun dağıtım koşullarında resmî Sign in with ChatGPT akışıdır. Sistem tarayıcısı, kullanıcı izni ve güvenli yerel oturum saklama tasarlanmalıdır. Plan kullanımı yolu ile API anahtarlı OpenAI erişimi ayrı yapılandırmalar olmalıdır. Aktif hesap ve ödeme kaynağı görünür olmalı; API anahtarına otomatik ücretli geçiş yapılmamalıdır. [OpenAI giriş kapsamı](https://developers.openai.com/siwc/token-sharing-open-source), [SIWC ile app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
+Durable storage is a backend milestone. SQLite remains the planned local store; its schema and migrations should follow actual project and conversation workflows.
 
-ChatGPT plan kullanımında desteklenen API özellikleri ve bağlam yönetimi sınırlıdır. Uygulama geçmişin sahibi olmalı; desteklenmeyen sunucu özelliklerine bağlı kalmamalıdır. [Önizleme sınırları](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+## Provider adapters
 
-## MCP ve Skill yönetimi
+The Codex app-server adapter will own initialization, threads, turns, streamed events, cancellation, and resume. The initial protocol flow includes `initialize`, `thread/start`, and `turn/start`. Pin the supported runtime/protocol version and define recovery and token renewal during integration. [Codex app-server](https://learn.chatgpt.com/docs/app-server)
 
-Katalog tanımı, öneri, projeye ekleme, kurulum ve çalıştırma ayrı adımlardır. Projenin açıklamasından üretilen bir öneri, komut yürütme yetkisi vermez. Bir araç için kaynak, sürüm, gerekli erişimler ve proje kapsamı gösterilmelidir.
+Engine selection does not itself authorize ChatGPT plan usage. The authentication layer will handle the supported Sign in with ChatGPT flow for eligible distribution and accounts. API-key access has separate billing. Show the active account and payment source, and never switch silently to API billing. [OpenAI scope](https://developers.openai.com/siwc/token-sharing-open-source), [SIWC with app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
 
-MCP sunucuları sonraki aşamada ayrı süreçler olarak yönetilmelidir. Başlatma/durdurma, hata, zaman aşımı ve izin iptali ürün akışının parçasıdır. Skill içeriği de kullanıcı yetkilerini genişletemez. Bu başlangıç sürümü bu işlemleri yürütmez.
+MWIDE maintains its own conversation history and supplies supported context to providers. Account authorization does not import ChatGPT history, and preview API limitations must be respected. [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
 
-## İlk uygulama sırası
+The independent Ollama adapter will handle local endpoint configuration, model selection, streaming, cancellation, and connection errors. LM Studio can later use a separate OpenAI-compatible adapter. Provider capabilities should be explicit rather than assumed identical.
 
-Önce proje ve sohbet veri modeli ile yerel kalıcılık; ardından Ollama sohbet akışı; sonra Codex app-server adaptörü ve uygun ChatGPT bağlantısı; ardından katalog ve izinli MCP/Skill yönetimi geliştirilir. Proje konusu üzerinden öneriler, bu temel akışlar doğrulandıktan sonra eklenir. Kimlik bilgileri veya kişisel proje verileri kaynak deposunda tutulmaz.
+## Catalog and recommendations
+
+Keep metadata, user defaults, project selections, generated recommendations, installation, and execution as distinct states. A user presses a recommendation button to send relevant project context to the selected model. Display suggestions without modifying defaults or granting permissions.
+
+Installing or running an MCP server or Skill requires a separate authorized action. Show its source, version, requested access, and project scope. Future MCP child processes need lifecycle, cancellation, timeout, and permission-revocation handling. Skill content cannot grant itself broader permissions.
+
+## Milestone validation
+
+Develop the visible interaction first, then connect its backend and verify the complete flow. Run type, lint, format, behavior-test, and build checks appropriate to the milestone. Inspect desktop screens and error states. Commit and push tested milestones with an accurate description of implemented behavior.
+
+Keep documentation and in-app reports in English. Never commit credentials, local project data, or model downloads. Do not present a provider as connected until its real end-to-end flow has been verified.

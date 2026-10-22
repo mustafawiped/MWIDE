@@ -1,5 +1,7 @@
-# Model bağlantıları
+# Providers
 
-ChatGPT tarafında ajan motoru Codex app-server olacak; yerel Ollama ayrı bir sağlayıcı adaptörü olarak bağlanacak. MWIDE proje, sohbet ve MCP/Skill seçimlerinin sahibi olarak kalır. ChatGPT plan kullanımı, OpenAI API anahtarı ve yerel sunucu erişimi ayrı kimlik ve bütçe yollarıdır.
+ChatGPT uses the Codex app-server engine as a local child process. Ollama is an independent local provider. MWIDE owns projects, conversations, protected project context, and MCP/Skill selections.
 
-Codex app-server yerel bir yan süreç olarak yönetilecek; protokol sürümü, akış, iptal ve devam etme bu adaptörün sorumluluğunda olacak. Henüz app-server bağlantısı, ağ isteği, oturum açma veya model çalıştırma uygulanmamıştır. Kimlik bilgileri renderer'a aktarılmamalı; ağ erişimi ve iptal arayüzleri gerçek entegrasyon sırasında tanımlanmalıdır.
+The Codex adapter will handle initialization, threads, turns, streaming, cancellation, and resume. Engine choice is separate from authentication: eligible ChatGPT plan usage, API-key billing, and local-server access are distinct routes.
+
+Live connections follow the UI preview milestone. Keep credentials outside the renderer, expose supported capabilities explicitly, and define protocol pinning, token renewal, and recovery during integration.

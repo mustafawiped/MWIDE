@@ -1,5 +1,7 @@
-# Uygulama çekirdeği
+# Application core
 
-Proje, sohbet ve projeye bağlı MCP/Skill seçimlerinin sağlayıcıdan bağımsız kuralları burada gelişecek. Başlangıç sürümünde iş mantığı uygulanmamıştır.
+Provider-independent rules for projects, conversations, user defaults, and project-specific MCP/Skill selections belong here. Keep this module independent of Electron, React, and provider session formats.
 
-Bu katman Electron veya React'e bağımlı olmamalıdır. Kalıcılık ve sağlayıcı adaptörleri ihtiyaç ortaya çıktıkça dar sözleşmelerle bağlanır.
+Preserve complete project purpose, canonical architecture notes, and additional rules separately from generated cross-chat summaries. Summarization must not silently edit or replace canonical records.
+
+Add persistence and provider boundaries as their workflows are implemented after the UI preview. Prefer focused functions and narrow contracts with minimal boilerplate.
